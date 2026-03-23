@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecionando…</title>
+  <script>
+    // Nome confuso: a sala real está em sala.html. Mantemos este arquivo só para links antigos.
+    (function () {
+      var q = window.location.search || '';
+      window.location.replace('sala.html' + q);
+    })();
+  </script>
+</head>
+<body>
+  <p>Redirecionando para a sala…</p>
+  <p><a id="manual" href="sala.html">Clique aqui se não redirecionar</a></p>
+  <script>
+    document.getElementById('manual').href = 'sala.html' + (window.location.search || '');
+  </script>
+</body>
+</html>
