@@ -45,6 +45,12 @@ Conecte o repositório ao Netlify (**Continuous deployment**). Depois, cada `git
 4. **Link do consultor** — seu acesso; ao abrir, digite a senha no modal (ou use sessão já ativa no mesmo navegador).
 5. **Concluir** uma sala no painel pede a senha da sala para confirmar.
 
+### Na tela da sala
+
+- **Sair da sala** — volta ao início (`index.html`) para entrar em outro código.
+- **Painel** e **Sair do modo consultor** — aparecem só quando há sessão de consultor (token válido neste navegador). O painel leva a `admin.html` (criar salas, listar, concluir).
+- O logo **AlinhaPro** também leva ao início.
+
 ### Como cliente
 
 1. Receba só o link da sala (`?id=...`, sem `consultor=1`)

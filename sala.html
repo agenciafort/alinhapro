@@ -10,12 +10,20 @@
 </head>
 <body>
 
-  <header class="header">
-    <a href="index.html" class="header__logo">Alinha<span>Pro</span></a>
+  <header class="header header--sala" role="banner">
+    <a href="index.html" class="header__logo" title="Ir para início">Alinha<span>Pro</span></a>
     <div class="header__sala-info">
-      <span id="salaNome">Carregando...</span>
-      <span class="header__status" id="salaStatus">Ao vivo</span>
+      <span id="salaNome" class="header__sala-title">Carregando…</span>
+      <span class="header__status" id="salaStatus" aria-live="polite">Ao vivo</span>
     </div>
+    <nav class="header__nav" id="navSala" aria-label="Ações da sala">
+      <a href="admin.html" class="header__nav-link header__nav-link--muted" id="navPainel" hidden title="Gerenciar salas e criar novas">Painel</a>
+      <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--muted" id="navSairConsultor" hidden title="Remove a sessão de edição neste navegador">
+        Sair do modo consultor
+      </button>
+      <span class="header__nav-sep" id="navSepConsultor" hidden aria-hidden="true"></span>
+      <a href="index.html" class="header__nav-link header__nav-link--cta" id="navSairSala" title="Voltar para entrar em outra sala">Sair da sala</a>
+    </nav>
   </header>
 
   <div class="sala-container">
@@ -93,6 +101,29 @@
     let isAdmin = false;
     let salaIdGlobal = null;
 
+    function atualizarNavSala() {
+      const temToken = salaIdGlobal && !!getAdminToken(salaIdGlobal);
+      const painel = document.getElementById('navPainel');
+      const sairCons = document.getElementById('navSairConsultor');
+      const sep = document.getElementById('navSepConsultor');
+      painel.hidden = !temToken;
+      sairCons.hidden = !temToken;
+      sep.hidden = !temToken;
+    }
+
+    function fecharEditorSeAberto() {
+      const docEditor = document.getElementById('docEditor');
+      const docContent = document.getElementById('docContent');
+      const btnEditar = document.getElementById('btnEditar');
+      const btnSalvar = document.getElementById('btnSalvar');
+      const btnCancelar = document.getElementById('btnCancelar');
+      docEditor.classList.remove('doc-editor--active');
+      docContent.classList.remove('doc-content--hidden');
+      btnSalvar.style.display = 'none';
+      btnCancelar.style.display = 'none';
+      btnEditar.style.display = (salaIdGlobal && getAdminToken(salaIdGlobal)) ? '' : 'none';
+    }
+
     function stripQueryParams(keys) {
       const u = new URL(window.location.href);
       keys.forEach(k => u.searchParams.delete(k));
@@ -105,6 +136,7 @@
       meuNome = localStorage.getItem('alinhapro_admin_nome') || 'Consultor';
       localStorage.setItem('alinhapro_nome', meuNome);
       document.getElementById('btnEditar').style.display = '';
+      atualizarNavSala();
     }
 
     function esconderUiAdmin() {
@@ -112,6 +144,7 @@
       document.getElementById('btnEditar').style.display = 'none';
       document.getElementById('btnSalvar').style.display = 'none';
       document.getElementById('btnCancelar').style.display = 'none';
+      atualizarNavSala();
     }
 
     function abrirModalSenha() {
@@ -149,6 +182,7 @@
       }
 
       document.addEventListener('alinhapro-admin-invalido', () => {
+        fecharEditorSeAberto();
         esconderUiAdmin();
       });
 
@@ -191,7 +225,9 @@
         if (e.key === 'Enter') document.getElementById('btnConfirmarConsultor').click();
       };
 
-      document.getElementById('salaNome').textContent = salaAtual.nome;
+      const elNome = document.getElementById('salaNome');
+      elNome.textContent = salaAtual.nome;
+      elNome.title = salaAtual.nome;
       document.title = `AlinhaPro — ${salaAtual.nome}`;
 
       window.__docAtual = salaAtual.documento;
@@ -217,6 +253,16 @@
 
       ouvirMudancasDocumento(salaId, (novoDoc) => {
         atualizarVisualizacao(novoDoc);
+      });
+
+      atualizarNavSala();
+
+      document.getElementById('navSairConsultor').addEventListener('click', () => {
+        if (!salaIdGlobal) return;
+        fecharEditorSeAberto();
+        limparSessaoConsultor(salaIdGlobal);
+        esconderUiAdmin();
+        showToast('Modo consultor encerrado. Você continua na sala como leitor.');
       });
     }
 
