@@ -40,6 +40,8 @@ function iniciarEditor(salaId, isAdmin) {
         docEditor.classList.remove('doc-editor--active');
         docContent.classList.remove('doc-content--hidden');
         showToast('Documento salvo!');
+      } else {
+        document.dispatchEvent(new CustomEvent('alinhapro-admin-invalido', { detail: { salaId } }));
       }
     });
   }

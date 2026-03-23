@@ -19,7 +19,6 @@
   </header>
 
   <div class="sala-container">
-    <!-- DOCUMENTO -->
     <div class="sala-documento">
       <div class="doc-header">
         <div class="doc-header__title">
@@ -45,7 +44,6 @@
       </div>
     </div>
 
-    <!-- CHAT -->
     <div class="sala-chat">
       <div class="chat-header">
         <div class="chat-header__title">
@@ -67,6 +65,22 @@
     </div>
   </div>
 
+  <!-- Modal: senha do consultor (link sem senha na URL) -->
+  <div class="modal-overlay" id="modalSenhaConsultor">
+    <div class="modal">
+      <h2>Acesso de consultor</h2>
+      <p class="text-sm text-muted mb-2">Digite a senha de administrador desta sala. Ela não fica salva na barra de endereços.</p>
+      <div class="form-group">
+        <label for="inputSenhaConsultor">Senha</label>
+        <input type="password" id="inputSenhaConsultor" placeholder="Senha da sala" autocomplete="current-password">
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" id="btnCancelarConsultor" type="button">Cancelar</button>
+        <button class="btn btn--primary" id="btnConfirmarConsultor" type="button">Entrar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="js/supabase.js"></script>
@@ -77,15 +91,66 @@
     let salaAtual = null;
     let meuNome = localStorage.getItem('alinhapro_nome') || 'Visitante';
     let isAdmin = false;
+    let salaIdGlobal = null;
+
+    function stripQueryParams(keys) {
+      const u = new URL(window.location.href);
+      keys.forEach(k => u.searchParams.delete(k));
+      const qs = u.searchParams.toString();
+      window.history.replaceState({}, '', u.pathname + (qs ? '?' + qs : '') + u.hash);
+    }
+
+    function mostrarUiAdmin() {
+      isAdmin = true;
+      meuNome = localStorage.getItem('alinhapro_admin_nome') || 'Consultor';
+      localStorage.setItem('alinhapro_nome', meuNome);
+      document.getElementById('btnEditar').style.display = '';
+    }
+
+    function esconderUiAdmin() {
+      isAdmin = false;
+      document.getElementById('btnEditar').style.display = 'none';
+      document.getElementById('btnSalvar').style.display = 'none';
+      document.getElementById('btnCancelar').style.display = 'none';
+    }
+
+    function abrirModalSenha() {
+      document.getElementById('modalSenhaConsultor').classList.add('modal-overlay--active');
+      document.getElementById('inputSenhaConsultor').value = '';
+      document.getElementById('inputSenhaConsultor').focus();
+    }
+
+    function fecharModalSenha() {
+      document.getElementById('modalSenhaConsultor').classList.remove('modal-overlay--active');
+    }
+
+    async function tentarLoginConsultor(senha) {
+      const token = await adminLogin(salaIdGlobal, senha);
+      if (!token) {
+        showToast('Senha incorreta.');
+        return false;
+      }
+      showToast('Sessão de consultor ativa (8 horas neste navegador).');
+      fecharModalSenha();
+      stripQueryParams(['admin', 'consultor']);
+      mostrarUiAdmin();
+      return true;
+    }
 
     async function init() {
       const salaId = getParam('id');
-      const adminKey = getParam('admin');
+      salaIdGlobal = salaId;
+      const adminLegacy = getParam('admin');
+      const modoConsultor = getParam('consultor') === '1';
 
       if (!salaId) {
         window.location.href = 'index.html';
         return;
       }
+
+      document.addEventListener('alinhapro-admin-invalido', () => {
+        esconderUiAdmin();
+      });
 
       salaAtual = await buscarSala(salaId);
       if (!salaAtual) {
@@ -94,21 +159,43 @@
         return;
       }
 
-      isAdmin = adminKey === salaAtual.senha_admin;
+      isAdmin = !!getAdminToken(salaId);
       if (isAdmin) {
-        meuNome = localStorage.getItem('alinhapro_admin_nome') || 'Consultor';
-        localStorage.setItem('alinhapro_nome', meuNome);
+        mostrarUiAdmin();
       }
+
+      if (adminLegacy) {
+        const ok = await tentarLoginConsultor(adminLegacy);
+        if (ok) isAdmin = true;
+        else stripQueryParams(['admin']);
+      } else if (modoConsultor && !getAdminToken(salaId)) {
+        abrirModalSenha();
+      }
+
+      document.getElementById('btnConfirmarConsultor').onclick = async () => {
+        const s = document.getElementById('inputSenhaConsultor').value;
+        if (!s) {
+          showToast('Digite a senha.');
+          return;
+        }
+        const ok = await tentarLoginConsultor(s);
+        if (ok) isAdmin = true;
+      };
+
+      document.getElementById('btnCancelarConsultor').onclick = () => {
+        fecharModalSenha();
+        stripQueryParams(['consultor']);
+      };
+
+      document.getElementById('inputSenhaConsultor').onkeydown = (e) => {
+        if (e.key === 'Enter') document.getElementById('btnConfirmarConsultor').click();
+      };
 
       document.getElementById('salaNome').textContent = salaAtual.nome;
       document.title = `AlinhaPro — ${salaAtual.nome}`;
 
       window.__docAtual = salaAtual.documento;
       document.getElementById('docContent').innerHTML = renderizarMarkdown(salaAtual.documento);
-
-      if (isAdmin) {
-        document.getElementById('btnEditar').style.display = '';
-      }
 
       iniciarEditor(salaId, isAdmin);
 

@@ -1,17 +1,42 @@
+const COLUNAS_SALA_SEGURAS = 'id,nome,documento,status,criada_em';
+
+function chaveTokenAdmin(salaId) {
+  return 'alinhapro_admin_token_' + salaId;
+}
+
+function getAdminToken(salaId) {
+  return sessionStorage.getItem(chaveTokenAdmin(salaId));
+}
+
+function setAdminToken(salaId, token) {
+  if (token) sessionStorage.setItem(chaveTokenAdmin(salaId), token);
+}
+
+function limparSessaoConsultor(salaId) {
+  sessionStorage.removeItem(chaveTokenAdmin(salaId));
+}
+
+async function adminLogin(salaId, senhaPlain) {
+  const { data, error } = await sb.rpc('rpc_admin_login', {
+    p_sala_id: salaId,
+    p_senha: senhaPlain
+  });
+  if (error) {
+    console.error('adminLogin:', error);
+    return null;
+  }
+  if (!data) return null;
+  const token = typeof data === 'string' ? data : String(data);
+  setAdminToken(salaId, token);
+  return token;
+}
+
 async function criarSala(nome, senhaAdmin) {
   try {
-    const docInicial = `# ${nome}\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n`;
-
-    const { data, error } = await sb
-      .from('salas')
-      .insert({
-        nome,
-        documento: docInicial,
-        status: 'ativa',
-        senha_admin: senhaAdmin
-      })
-      .select()
-      .single();
+    const { data, error } = await sb.rpc('rpc_criar_sala', {
+      p_nome: nome,
+      p_senha: senhaAdmin
+    });
 
     if (error) {
       console.error('Erro Supabase:', error);
@@ -19,7 +44,13 @@ async function criarSala(nome, senhaAdmin) {
       return null;
     }
 
-    return data;
+    if (data == null) return null;
+    if (typeof data === 'object') return data;
+    try {
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
   } catch (e) {
     console.error('Erro inesperado:', e);
     showToast('Erro inesperado: ' + e.message);
@@ -30,7 +61,7 @@ async function criarSala(nome, senhaAdmin) {
 async function listarSalas() {
   const { data, error } = await sb
     .from('salas')
-    .select('*')
+    .select(COLUNAS_SALA_SEGURAS)
     .order('criada_em', { ascending: false });
 
   if (error) {
@@ -44,7 +75,7 @@ async function listarSalas() {
 async function buscarSala(id) {
   const { data, error } = await sb
     .from('salas')
-    .select('*')
+    .select(COLUNAS_SALA_SEGURAS)
     .eq('id', id)
     .single();
 
@@ -53,28 +84,49 @@ async function buscarSala(id) {
 }
 
 async function atualizarDocumento(salaId, conteudo) {
-  const { error } = await sb
-    .from('salas')
-    .update({ documento: conteudo })
-    .eq('id', salaId);
-
-  if (error) {
-    showToast('Erro ao salvar documento');
+  const token = getAdminToken(salaId);
+  if (!token) {
+    showToast('Sessão de consultor não encontrada. Entre com a senha novamente.');
     return false;
   }
+
+  const { data, error } = await sb.rpc('rpc_atualizar_documento', {
+    p_sala_id: salaId,
+    p_token: token,
+    p_documento: conteudo
+  });
+
+  if (error) {
+    showToast('Erro ao salvar: ' + error.message);
+    return false;
+  }
+
+  if (data !== true) {
+    limparSessaoConsultor(salaId);
+    showToast('Sessão inválida ou expirada. Entre como consultor de novo.');
+    return false;
+  }
+
   return true;
 }
 
-async function alterarStatusSala(salaId, status) {
-  const { error } = await sb
-    .from('salas')
-    .update({ status })
-    .eq('id', salaId);
+async function alterarStatusSala(salaId, status, senhaAdmin) {
+  const { data, error } = await sb.rpc('rpc_alterar_status_sala', {
+    p_sala_id: salaId,
+    p_senha: senhaAdmin,
+    p_status: status
+  });
 
   if (error) {
-    showToast('Erro ao alterar status');
+    showToast('Erro: ' + error.message);
     return false;
   }
+
+  if (data !== true) {
+    showToast('Senha incorreta ou sala inválida.');
+    return false;
+  }
+
   return true;
 }
 
