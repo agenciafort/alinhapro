@@ -1,25 +1,30 @@
 async function criarSala(nome, senhaAdmin) {
-  const id = crypto.randomUUID();
-  const docInicial = `# ${nome}\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n`;
+  try {
+    const docInicial = `# ${nome}\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n`;
 
-  const { data, error } = await supabase
-    .from('salas')
-    .insert({
-      id,
-      nome,
-      documento: docInicial,
-      status: 'ativa',
-      senha_admin: senhaAdmin
-    })
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from('salas')
+      .insert({
+        nome,
+        documento: docInicial,
+        status: 'ativa',
+        senha_admin: senhaAdmin
+      })
+      .select()
+      .single();
 
-  if (error) {
-    showToast('Erro ao criar sala: ' + error.message);
+    if (error) {
+      console.error('Erro Supabase:', error);
+      showToast('Erro ao criar sala: ' + error.message);
+      return null;
+    }
+
+    return data;
+  } catch (e) {
+    console.error('Erro inesperado:', e);
+    showToast('Erro inesperado: ' + e.message);
     return null;
   }
-
-  return data;
 }
 
 async function listarSalas() {

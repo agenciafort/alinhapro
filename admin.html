@@ -142,23 +142,33 @@
         return;
       }
 
+      showToast('Criando sala...');
+
       localStorage.setItem('alinhapro_admin_nome', adminNome);
       localStorage.setItem('alinhapro_nome', adminNome);
 
-      const sala = await criarSala(nome, senha);
-      if (!sala) return;
+      try {
+        const sala = await criarSala(nome, senha);
+        if (!sala) {
+          showToast('Erro: sala não foi criada. Verifique o console (F12).');
+          return;
+        }
 
-      fecharModalNovaSala();
+        fecharModalNovaSala();
 
-      const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
-      const linkCliente = `${baseUrl}sala.html?id=${sala.id}`;
-      const linkAdmin = `${baseUrl}sala.html?id=${sala.id}&admin=${encodeURIComponent(senha)}`;
+        const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
+        const linkCliente = `${baseUrl}sala.html?id=${sala.id}`;
+        const linkAdmin = `${baseUrl}sala.html?id=${sala.id}&admin=${encodeURIComponent(senha)}`;
 
-      document.getElementById('linkCliente').value = linkCliente;
-      document.getElementById('linkAdmin').value = linkAdmin;
-      document.getElementById('modalLink').classList.add('modal-overlay--active');
+        document.getElementById('linkCliente').value = linkCliente;
+        document.getElementById('linkAdmin').value = linkAdmin;
+        document.getElementById('modalLink').classList.add('modal-overlay--active');
 
-      await carregarListaSalas();
+        await carregarListaSalas();
+      } catch (e) {
+        console.error('Erro ao criar sala:', e);
+        showToast('Erro: ' + e.message);
+      }
     }
 
     function entrarComoAdmin(salaId, senha) {
