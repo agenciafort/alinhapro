@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Consultoria em Tempo Real</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-index">
+
+  <div class="card-entry">
+    <div class="card-entry__logo">Alinha<span>Pro</span></div>
+    <h1 class="card-entry__title">Consultoria ao Vivo</h1>
+    <p class="card-entry__subtitle">Entre na sua sala de consultoria ou acesse o painel administrativo.</p>
+
+    <form id="formEntrar" onsubmit="return false;">
+      <div class="form-group">
+        <label for="salaId">Código da sala</label>
+        <input type="text" id="salaId" placeholder="Cole o código da sala aqui..." required>
+      </div>
+      <div class="form-group">
+        <label for="nomeUsuario">Seu nome</label>
+        <input type="text" id="nomeUsuario" placeholder="Como quer ser chamado?" required>
+      </div>
+      <button type="submit" class="btn btn--primary btn--full" onclick="entrarSala()">Entrar na sala</button>
+    </form>
+
+    <div class="divider">ou</div>
+
+    <a href="admin.html" class="btn btn--secondary btn--full">Painel do Consultor</a>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/salas.js"></script>
+  <script>
+    async function entrarSala() {
+      const salaId = document.getElementById('salaId').value.trim();
+      const nome = document.getElementById('nomeUsuario').value.trim();
+
+      if (!salaId || !nome) {
+        showToast('Preencha todos os campos');
+        return;
+      }
+
+      const sala = await buscarSala(salaId);
+      if (!sala) {
+        showToast('Sala não encontrada. Verifique o código.');
+        return;
+      }
+
+      localStorage.setItem('alinhapro_nome', nome);
+      window.location.href = `sala.html?id=${salaId}`;
+    }
+
+    const savedNome = localStorage.getItem('alinhapro_nome');
+    if (savedNome) {
+      document.getElementById('nomeUsuario').value = savedNome;
+    }
+  </script>
+
+</body>
+</html>

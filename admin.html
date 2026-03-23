@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Painel do Consultor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="header__logo">Alinha<span>Pro</span></a>
+    <div>
+      <button class="btn btn--primary btn--sm" onclick="abrirModalNovaSala()">+ Nova Sala</button>
+    </div>
+  </header>
+
+  <div class="admin-container">
+    <div class="admin-header">
+      <h1>Suas Salas de Consultoria</h1>
+    </div>
+
+    <div id="listaSalas">
+      <div class="empty-state">
+        <div class="empty-state__icon">&#128204;</div>
+        <p>Carregando salas...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Nova Sala -->
+  <div class="modal-overlay" id="modalNovaSala">
+    <div class="modal">
+      <h2>Criar Nova Sala</h2>
+      <div class="form-group">
+        <label for="novaSalaNome">Nome do cliente / projeto</label>
+        <input type="text" id="novaSalaNome" placeholder="Ex: Projeto João - Gestão">
+      </div>
+      <div class="form-group">
+        <label for="novaSalaSenha">Senha de administrador</label>
+        <input type="text" id="novaSalaSenha" placeholder="Uma senha para proteger a edição">
+      </div>
+      <div class="form-group">
+        <label for="adminNome">Seu nome (como consultor)</label>
+        <input type="text" id="adminNome" placeholder="Seu nome">
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" onclick="fecharModalNovaSala()">Cancelar</button>
+        <button class="btn btn--primary" onclick="criarNovaSala()">Criar Sala</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Link da Sala -->
+  <div class="modal-overlay" id="modalLink">
+    <div class="modal">
+      <h2>Sala Criada!</h2>
+      <p class="mb-2">Envie este link para o <strong>cliente</strong>:</p>
+      <div class="form-group">
+        <label>Link do cliente</label>
+        <input type="text" id="linkCliente" readonly onclick="this.select()">
+      </div>
+      <p class="mb-2">E este é o <strong>seu link</strong> (com acesso de edição):</p>
+      <div class="form-group">
+        <label>Link do consultor (admin)</label>
+        <input type="text" id="linkAdmin" readonly onclick="this.select()">
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--primary" onclick="fecharModalLink()">Entendi</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/salas.js"></script>
+  <script>
+    async function carregarListaSalas() {
+      const salas = await listarSalas();
+      const container = document.getElementById('listaSalas');
+
+      if (salas.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state__icon">&#128221;</div>
+            <p>Nenhuma sala criada ainda.</p>
+            <p class="text-sm text-muted mt-1">Clique em "+ Nova Sala" para começar.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = salas.map(s => `
+        <div class="sala-card">
+          <div class="sala-card__info">
+            <h3>${escapeHtmlAdmin(s.nome)} <span class="badge ${s.status === 'ativa' ? 'badge--active' : 'badge--done'}">${s.status}</span></h3>
+            <p>Criada em ${formatDate(s.criada_em)} &bull; Código: ${s.id.substring(0, 8)}...</p>
+          </div>
+          <div class="sala-card__actions">
+            <button class="btn btn--primary btn--sm" onclick="entrarComoAdmin('${s.id}', '${escapeHtmlAdmin(s.senha_admin)}')">Entrar</button>
+            <button class="btn btn--secondary btn--sm" onclick="copiarLinkCliente('${s.id}')">Link cliente</button>
+            ${s.status === 'ativa'
+              ? `<button class="btn btn--sm btn--secondary" onclick="concluirSala('${s.id}')">Concluir</button>`
+              : `<button class="btn btn--sm btn--secondary" onclick="reativarSala('${s.id}')">Reativar</button>`
+            }
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtmlAdmin(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function abrirModalNovaSala() {
+      document.getElementById('modalNovaSala').classList.add('modal-overlay--active');
+      const savedNome = localStorage.getItem('alinhapro_admin_nome');
+      if (savedNome) {
+        document.getElementById('adminNome').value = savedNome;
+      }
+    }
+
+    function fecharModalNovaSala() {
+      document.getElementById('modalNovaSala').classList.remove('modal-overlay--active');
+    }
+
+    function fecharModalLink() {
+      document.getElementById('modalLink').classList.remove('modal-overlay--active');
+    }
+
+    async function criarNovaSala() {
+      const nome = document.getElementById('novaSalaNome').value.trim();
+      const senha = document.getElementById('novaSalaSenha').value.trim();
+      const adminNome = document.getElementById('adminNome').value.trim();
+
+      if (!nome || !senha || !adminNome) {
+        showToast('Preencha todos os campos');
+        return;
+      }
+
+      localStorage.setItem('alinhapro_admin_nome', adminNome);
+      localStorage.setItem('alinhapro_nome', adminNome);
+
+      const sala = await criarSala(nome, senha);
+      if (!sala) return;
+
+      fecharModalNovaSala();
+
+      const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
+      const linkCliente = `${baseUrl}sala.html?id=${sala.id}`;
+      const linkAdmin = `${baseUrl}sala.html?id=${sala.id}&admin=${encodeURIComponent(senha)}`;
+
+      document.getElementById('linkCliente').value = linkCliente;
+      document.getElementById('linkAdmin').value = linkAdmin;
+      document.getElementById('modalLink').classList.add('modal-overlay--active');
+
+      await carregarListaSalas();
+    }
+
+    function entrarComoAdmin(salaId, senha) {
+      window.location.href = `sala.html?id=${salaId}&admin=${encodeURIComponent(senha)}`;
+    }
+
+    function copiarLinkCliente(salaId) {
+      const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '');
+      const link = `${baseUrl}sala.html?id=${salaId}`;
+      navigator.clipboard.writeText(link).then(() => {
+        showToast('Link do cliente copiado!');
+      });
+    }
+
+    async function concluirSala(salaId) {
+      await alterarStatusSala(salaId, 'concluida');
+      showToast('Sala concluída');
+      await carregarListaSalas();
+    }
+
+    async function reativarSala(salaId) {
+      await alterarStatusSala(salaId, 'ativa');
+      showToast('Sala reativada');
+      await carregarListaSalas();
+    }
+
+    carregarListaSalas();
+  </script>
+
+</body>
+</html>
