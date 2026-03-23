@@ -28,27 +28,48 @@
 
   <div class="sala-container">
     <div class="sala-documento">
-      <div class="doc-header">
-        <div class="doc-header__title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          Documento do Projeto
-        </div>
-        <div>
-          <button class="btn btn--sm btn--primary" id="btnEditar" style="display:none;">Editar</button>
-          <button class="btn btn--sm btn--primary" id="btnSalvar" style="display:none;">Salvar</button>
-          <button class="btn btn--sm btn--secondary" id="btnCancelar" style="display:none;">Cancelar</button>
-        </div>
+      <!-- Tabs: só aparecem se houver preview_url -->
+      <div class="doc-tabs" id="docTabs" hidden>
+        <button class="doc-tab doc-tab--active" data-tab="preview" id="tabPreview">Preview ao vivo</button>
+        <button class="doc-tab" data-tab="documento" id="tabDocumento">Anotações</button>
       </div>
 
-      <div class="doc-content" id="docContent">
-        <div class="empty-state">
-          <div class="empty-state__icon">&#128196;</div>
-          <p>Carregando documento...</p>
+      <!-- PREVIEW (iframe) -->
+      <div class="preview-container preview-container--active" id="panelPreview" hidden>
+        <div class="preview-toolbar">
+          <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
+          <div class="preview-toolbar__actions">
+            <button class="btn btn--sm btn--secondary" id="btnRecarregarPreview" title="Recarregar preview">Recarregar</button>
+            <button class="btn btn--sm btn--secondary" id="btnEditarUrl" style="display:none;" title="Alterar URL de preview">Alterar URL</button>
+          </div>
         </div>
+        <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"></iframe>
       </div>
 
-      <div class="doc-editor" id="docEditor">
-        <textarea id="editorTextarea" placeholder="Escreva em Markdown..."></textarea>
+      <!-- DOCUMENTO (Markdown) -->
+      <div id="panelDocumento">
+        <div class="doc-header">
+          <div class="doc-header__title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Anotações do Projeto
+          </div>
+          <div>
+            <button class="btn btn--sm btn--primary" id="btnEditar" style="display:none;">Editar</button>
+            <button class="btn btn--sm btn--primary" id="btnSalvar" style="display:none;">Salvar</button>
+            <button class="btn btn--sm btn--secondary" id="btnCancelar" style="display:none;">Cancelar</button>
+          </div>
+        </div>
+
+        <div class="doc-content" id="docContent">
+          <div class="empty-state">
+            <div class="empty-state__icon">&#128196;</div>
+            <p>Carregando documento...</p>
+          </div>
+        </div>
+
+        <div class="doc-editor" id="docEditor">
+          <textarea id="editorTextarea" placeholder="Escreva em Markdown..."></textarea>
+        </div>
       </div>
     </div>
 
@@ -235,6 +256,84 @@
 
       iniciarEditor(salaId, isAdmin);
 
+      // ===== PREVIEW =====
+      const temPreview = salaAtual.preview_url && salaAtual.preview_url.trim() !== '';
+      const docTabs = document.getElementById('docTabs');
+      const panelPreview = document.getElementById('panelPreview');
+      const panelDocumento = document.getElementById('panelDocumento');
+      const tabPreview = document.getElementById('tabPreview');
+      const tabDocumento = document.getElementById('tabDocumento');
+      const previewIframe = document.getElementById('previewIframe');
+      const previewUrlLabel = document.getElementById('previewUrlLabel');
+      const btnRecarregar = document.getElementById('btnRecarregarPreview');
+      const btnEditarUrl = document.getElementById('btnEditarUrl');
+
+      let previewUrlAtual = temPreview ? salaAtual.preview_url.trim() : '';
+      let autoReloadTimer = null;
+
+      function carregarPreview(url) {
+        if (!url) return;
+        previewUrlAtual = url;
+        previewUrlLabel.textContent = url;
+        previewIframe.src = url;
+      }
+
+      function trocarTab(tab) {
+        if (tab === 'preview') {
+          tabPreview.classList.add('doc-tab--active');
+          tabDocumento.classList.remove('doc-tab--active');
+          panelPreview.classList.add('preview-container--active');
+          panelPreview.hidden = false;
+          panelDocumento.hidden = true;
+        } else {
+          tabDocumento.classList.add('doc-tab--active');
+          tabPreview.classList.remove('doc-tab--active');
+          panelPreview.classList.remove('preview-container--active');
+          panelPreview.hidden = true;
+          panelDocumento.hidden = false;
+        }
+      }
+
+      if (temPreview) {
+        docTabs.hidden = false;
+        panelPreview.hidden = false;
+        panelDocumento.hidden = true;
+        carregarPreview(previewUrlAtual);
+
+        if (isAdmin) btnEditarUrl.style.display = '';
+
+        tabPreview.addEventListener('click', () => trocarTab('preview'));
+        tabDocumento.addEventListener('click', () => trocarTab('documento'));
+
+        btnRecarregar.addEventListener('click', () => {
+          previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
+          showToast('Preview recarregado');
+        });
+
+        btnEditarUrl.addEventListener('click', async () => {
+          const novaUrl = prompt('Nova URL de preview:', previewUrlAtual);
+          if (novaUrl === null) return;
+          const ok = await atualizarPreviewUrl(salaId, novaUrl);
+          if (ok) {
+            previewUrlAtual = novaUrl.trim();
+            carregarPreview(previewUrlAtual);
+            showToast('URL de preview atualizada!');
+          }
+        });
+
+        // Auto-reload a cada 30 segundos (o cliente vê atualizações do deploy)
+        autoReloadTimer = setInterval(() => {
+          if (!document.hidden && panelPreview.classList.contains('preview-container--active')) {
+            previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
+          }
+        }, 30000);
+      } else {
+        panelDocumento.hidden = false;
+        panelPreview.hidden = true;
+        docTabs.hidden = true;
+      }
+
+      // ===== CHAT =====
       const msgs = await carregarMensagens(salaId);
       const container = document.getElementById('chatMessages');
       if (msgs.length > 0) {
@@ -251,8 +350,22 @@
         scrollChatParaBaixo();
       });
 
-      ouvirMudancasDocumento(salaId, (novoDoc) => {
-        atualizarVisualizacao(novoDoc);
+      // ===== REALTIME: documento + preview_url =====
+      ouvirMudancasSala(salaId, (novaSala) => {
+        if (novaSala.documento !== undefined) {
+          atualizarVisualizacao(novaSala.documento);
+        }
+        if (novaSala.preview_url !== undefined) {
+          const novaUrl = (novaSala.preview_url || '').trim();
+          if (novaUrl && novaUrl !== previewUrlAtual) {
+            previewUrlAtual = novaUrl;
+            carregarPreview(novaUrl);
+            if (docTabs.hidden) {
+              docTabs.hidden = false;
+              trocarTab('preview');
+            }
+          }
+        }
       });
 
       atualizarNavSala();
@@ -262,6 +375,7 @@
         fecharEditorSeAberto();
         limparSessaoConsultor(salaIdGlobal);
         esconderUiAdmin();
+        btnEditarUrl.style.display = 'none';
         showToast('Modo consultor encerrado. Você continua na sala como leitor.');
       });
     }

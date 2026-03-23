@@ -197,6 +197,81 @@ body {
   flex-shrink: 0;
 }
 
+/* ====== TABS (Documento / Preview) ====== */
+.doc-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}
+
+.doc-tab {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: center;
+  font-family: inherit;
+}
+
+.doc-tab:hover {
+  color: var(--gray-700);
+}
+
+.doc-tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ====== PREVIEW IFRAME ====== */
+.preview-container {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-container--active {
+  display: flex;
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  gap: 0.5rem;
+}
+
+.preview-toolbar__url {
+  flex: 1;
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-toolbar__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.preview-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: white;
+}
+
 /* ====== PAGE: INDEX ====== */
 .page-index {
   display: flex;

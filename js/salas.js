@@ -1,4 +1,4 @@
-const COLUNAS_SALA_SEGURAS = 'id,nome,documento,status,criada_em';
+const COLUNAS_SALA_SEGURAS = 'id,nome,documento,status,preview_url,criada_em';
 
 function chaveTokenAdmin(salaId) {
   return 'alinhapro_admin_token_' + salaId;
@@ -31,12 +31,11 @@ async function adminLogin(salaId, senhaPlain) {
   return token;
 }
 
-async function criarSala(nome, senhaAdmin) {
+async function criarSala(nome, senhaAdmin, previewUrl) {
   try {
-    const { data, error } = await sb.rpc('rpc_criar_sala', {
-      p_nome: nome,
-      p_senha: senhaAdmin
-    });
+    const params = { p_nome: nome, p_senha: senhaAdmin };
+    if (previewUrl) params.p_preview_url = previewUrl;
+    const { data, error } = await sb.rpc('rpc_criar_sala', params);
 
     if (error) {
       console.error('Erro Supabase:', error);
@@ -130,13 +129,35 @@ async function alterarStatusSala(salaId, status, senhaAdmin) {
   return true;
 }
 
-function ouvirMudancasDocumento(salaId, callback) {
+async function atualizarPreviewUrl(salaId, url) {
+  const token = getAdminToken(salaId);
+  if (!token) {
+    showToast('Sessão de consultor não encontrada.');
+    return false;
+  }
+  const { data, error } = await sb.rpc('rpc_atualizar_preview_url', {
+    p_sala_id: salaId,
+    p_token: token,
+    p_url: url || ''
+  });
+  if (error) {
+    showToast('Erro ao salvar URL: ' + error.message);
+    return false;
+  }
+  if (data !== true) {
+    showToast('Sessão inválida. Entre como consultor de novo.');
+    return false;
+  }
+  return true;
+}
+
+function ouvirMudancasSala(salaId, callback) {
   return sb
     .channel(`doc-${salaId}`)
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'salas', filter: `id=eq.${salaId}` },
       (payload) => {
-        callback(payload.new.documento);
+        callback(payload.new);
       }
     )
     .subscribe();
