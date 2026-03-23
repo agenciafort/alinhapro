@@ -1,7 +1,9 @@
 const SUPABASE_URL = 'https://fsrydwoacouogujvmdsf.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Hwg8d69cRDqy6XBEfXljIQ_HZXN9qzs';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Não usar o nome "supabase" — o CDN já expõe window.supabase (namespace com createClient)
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function showToast(msg) {
   const existing = document.querySelector('.toast');

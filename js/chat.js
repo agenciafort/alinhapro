@@ -1,5 +1,5 @@
 async function enviarMensagem(salaId, autor, conteudo) {
-  const { error } = await supabase
+  const { error } = await sb
     .from('mensagens')
     .insert({
       sala_id: salaId,
@@ -15,7 +15,7 @@ async function enviarMensagem(salaId, autor, conteudo) {
 }
 
 async function carregarMensagens(salaId) {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('mensagens')
     .select('*')
     .eq('sala_id', salaId)
@@ -44,7 +44,7 @@ function escapeHtml(text) {
 }
 
 function ouvirMensagens(salaId, callback) {
-  return supabase
+  return sb
     .channel(`chat-${salaId}`)
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `sala_id=eq.${salaId}` },

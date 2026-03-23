@@ -2,7 +2,7 @@ async function criarSala(nome, senhaAdmin) {
   try {
     const docInicial = `# ${nome}\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n`;
 
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('salas')
       .insert({
         nome,
@@ -28,7 +28,7 @@ async function criarSala(nome, senhaAdmin) {
 }
 
 async function listarSalas() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('salas')
     .select('*')
     .order('criada_em', { ascending: false });
@@ -42,7 +42,7 @@ async function listarSalas() {
 }
 
 async function buscarSala(id) {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('salas')
     .select('*')
     .eq('id', id)
@@ -53,7 +53,7 @@ async function buscarSala(id) {
 }
 
 async function atualizarDocumento(salaId, conteudo) {
-  const { error } = await supabase
+  const { error } = await sb
     .from('salas')
     .update({ documento: conteudo })
     .eq('id', salaId);
@@ -66,7 +66,7 @@ async function atualizarDocumento(salaId, conteudo) {
 }
 
 async function alterarStatusSala(salaId, status) {
-  const { error } = await supabase
+  const { error } = await sb
     .from('salas')
     .update({ status })
     .eq('id', salaId);
@@ -79,7 +79,7 @@ async function alterarStatusSala(salaId, status) {
 }
 
 function ouvirMudancasDocumento(salaId, callback) {
-  return supabase
+  return sb
     .channel(`doc-${salaId}`)
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'salas', filter: `id=eq.${salaId}` },
