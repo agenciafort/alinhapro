@@ -11,10 +11,16 @@
 <body>
 
   <header class="header">
-    <a href="index.html" class="header__logo">Alinha<span>Pro</span></a>
-    <div>
-      <button class="btn btn--primary btn--sm" onclick="abrirModalNovaSala()">+ Nova Sala</button>
+    <a href="admin.html" class="header__logo">Alinha<span>Pro</span></a>
+    <div class="header__sala-info">
+      <span class="header__sala-title" id="headerUserName">Carregando…</span>
+      <span class="badge badge--active" id="headerUserRole"></span>
     </div>
+    <nav class="header__nav">
+      <a href="superadmin.html" class="header__nav-link header__nav-link--muted" id="navSuperAdmin" hidden>Gerenciar Admins</a>
+      <button class="btn btn--primary btn--sm" onclick="abrirModalNovaSala()">+ Nova Sala</button>
+      <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--cta" onclick="logout()">Sair</button>
+    </nav>
   </header>
 
   <div class="admin-container">
@@ -39,12 +45,8 @@
         <input type="text" id="novaSalaNome" placeholder="Ex: Projeto João - Gestão">
       </div>
       <div class="form-group">
-        <label for="novaSalaSenha">Senha de administrador</label>
-        <input type="text" id="novaSalaSenha" placeholder="Uma senha para proteger a edição">
-      </div>
-      <div class="form-group">
-        <label for="adminNome">Seu nome (como consultor)</label>
-        <input type="text" id="adminNome" placeholder="Seu nome">
+        <label for="novaSalaSenha">Senha de administrador da sala</label>
+        <input type="text" id="novaSalaSenha" placeholder="Senha para proteger a edição na sala">
       </div>
       <div class="form-group">
         <label class="checkbox-label">
@@ -87,10 +89,18 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/salas.js"></script>
   <script>
+    let currentUser = null;
+
+    async function logout() {
+      await authLogout();
+      window.location.href = 'login.html';
+    }
+
     async function carregarListaSalas() {
-      const salas = await listarSalas();
+      const salas = await listarSalasAdmin();
       const container = document.getElementById('listaSalas');
 
       if (salas.length === 0) {
@@ -117,7 +127,7 @@
               ? `<button class="btn btn--sm btn--secondary" onclick="concluirSala('${s.id}')">Concluir</button>`
               : `<button class="btn btn--sm btn--secondary" onclick="reativarSala('${s.id}')">Reativar</button>`
             }
-            <button type="button" class="btn btn--sm btn--secondary" title="Recria o site na Netlify a partir do repo GitHub e atualiza o preview desta sala" onclick="reconectarSiteNetlify('${s.id}')">Recriar site</button>
+            <button type="button" class="btn btn--sm btn--secondary" title="Recria o site na Netlify" onclick="reconectarSiteNetlify('${s.id}')">Recriar site</button>
             <button class="btn btn--sm btn--danger" onclick="deletarSala('${s.id}', '${escapeHtmlAdmin(s.nome)}')">Deletar</button>
           </div>
         </div>
@@ -132,10 +142,6 @@
 
     function abrirModalNovaSala() {
       document.getElementById('modalNovaSala').classList.add('modal-overlay--active');
-      const savedNome = localStorage.getItem('alinhapro_admin_nome');
-      if (savedNome) {
-        document.getElementById('adminNome').value = savedNome;
-      }
     }
 
     function fecharModalNovaSala() {
@@ -153,17 +159,15 @@
     async function criarNovaSala() {
       const nome = document.getElementById('novaSalaNome').value.trim();
       const senha = document.getElementById('novaSalaSenha').value.trim();
-      const adminNome = document.getElementById('adminNome').value.trim();
       const criarProjeto = document.getElementById('novaSalaCriarProjeto').checked;
       const previewManual = document.getElementById('novaSalaPreview').value.trim();
 
-      if (!nome || !senha || !adminNome) {
+      if (!nome || !senha) {
         showToast('Preencha todos os campos');
         return;
       }
 
-      localStorage.setItem('alinhapro_admin_nome', adminNome);
-      localStorage.setItem('alinhapro_nome', adminNome);
+      localStorage.setItem('alinhapro_nome', currentUser.nome);
 
       let previewUrl = previewManual;
 
@@ -193,7 +197,8 @@
       }
 
       try {
-        const sala = await criarSala(nome, senha, previewUrl);
+        const userToken = getAuthToken();
+        const sala = await criarSala(nome, senha, previewUrl, userToken);
         if (!sala) {
           showToast('Erro: sala não foi criada. Verifique o console (F12).');
           return;
@@ -257,7 +262,7 @@
     }
 
     async function reconectarSiteNetlify(salaId) {
-      const salas = await listarSalas();
+      const salas = await listarSalasAdmin();
       const sala = salas.find((x) => x.id === salaId);
       if (!sala) {
         showToast('Sala não encontrada.');
@@ -312,7 +317,6 @@
 
       showToast('Deletando sala e projeto...');
 
-      // 1. Deletar sala no Supabase
       const { data, error } = await sb.rpc('rpc_deletar_sala', { p_sala_id: salaId, p_senha: confirma });
       if (error) {
         showToast('Erro: ' + error.message);
@@ -324,7 +328,6 @@
         return;
       }
 
-      // 2. Gerar slug do repositório a partir do nome
       const slug = nomeSala
         .toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -333,7 +336,6 @@
         .substring(0, 50);
       const repoSlug = 'cliente-' + slug;
 
-      // 3. Deletar repo GitHub + site Netlify
       try {
         const res = await fetch('/.netlify/functions/deletar-projeto', {
           method: 'POST',
@@ -355,7 +357,19 @@
       await carregarListaSalas();
     }
 
-    carregarListaSalas();
+    (async function init() {
+      currentUser = await requireAuth(['admin', 'superadmin']);
+      if (!currentUser) return;
+
+      document.getElementById('headerUserName').textContent = currentUser.nome;
+      document.getElementById('headerUserRole').textContent = currentUser.role === 'superadmin' ? 'Super Admin' : 'Admin';
+
+      if (currentUser.role === 'superadmin') {
+        document.getElementById('navSuperAdmin').hidden = false;
+      }
+
+      await carregarListaSalas();
+    })();
   </script>
 
 </body>

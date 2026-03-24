@@ -765,6 +765,11 @@ body {
   color: var(--gray-500);
 }
 
+.badge--super {
+  background: #fef3c7;
+  color: #b45309;
+}
+
 /* ====== MODAL ====== */
 .modal-overlay {
   display: none;

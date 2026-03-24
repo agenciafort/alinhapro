@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Super Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="admin.html" class="header__logo">Alinha<span>Pro</span></a>
+    <div class="header__sala-info">
+      <span class="header__sala-title">Gerenciamento de Admins</span>
+    </div>
+    <nav class="header__nav">
+      <a href="admin.html" class="header__nav-link header__nav-link--muted">Salas</a>
+      <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--cta" onclick="logout()">Sair</button>
+    </nav>
+  </header>
+
+  <div class="admin-container">
+    <div class="admin-header">
+      <h1>Administradores</h1>
+      <button class="btn btn--primary btn--sm" onclick="abrirModalNovoAdmin()">+ Novo Admin</button>
+    </div>
+
+    <div id="listaAdmins">
+      <div class="empty-state">
+        <div class="empty-state__icon">&#128274;</div>
+        <p>Carregando administradores...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Novo Admin -->
+  <div class="modal-overlay" id="modalNovoAdmin">
+    <div class="modal">
+      <h2>Criar Novo Admin</h2>
+      <div class="form-group">
+        <label for="adminEmail">Email</label>
+        <input type="email" id="adminEmail" placeholder="admin@exemplo.com">
+      </div>
+      <div class="form-group">
+        <label for="adminNome">Nome</label>
+        <input type="text" id="adminNome" placeholder="Nome do consultor">
+      </div>
+      <div class="form-group">
+        <label for="adminSenha">Senha inicial</label>
+        <input type="text" id="adminSenha" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" onclick="fecharModalNovoAdmin()">Cancelar</button>
+        <button class="btn btn--primary" onclick="criarAdmin()">Criar Admin</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Resetar Senha -->
+  <div class="modal-overlay" id="modalResetSenha">
+    <div class="modal">
+      <h2>Resetar Senha</h2>
+      <p class="text-sm text-muted mb-2" id="resetSenhaInfo">Resete a senha de...</p>
+      <div class="form-group">
+        <label for="novaSenhaReset">Nova senha</label>
+        <input type="text" id="novaSenhaReset" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" onclick="fecharModalResetSenha()">Cancelar</button>
+        <button class="btn btn--primary" onclick="confirmarResetSenha()">Resetar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    let resetTargetId = null;
+
+    async function logout() {
+      await authLogout();
+      window.location.href = 'login.html';
+    }
+
+    async function carregarAdmins() {
+      const res = await authListarAdmins();
+      const container = document.getElementById('listaAdmins');
+
+      if (!res || !res.ok) {
+        container.innerHTML = '<div class="empty-state"><p>Erro ao carregar admins.</p></div>';
+        return;
+      }
+
+      const admins = res.admins || [];
+
+      if (admins.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state__icon">&#128100;</div>
+            <p>Nenhum admin criado ainda.</p>
+            <p class="text-sm text-muted mt-1">Clique em "+ Novo Admin" para começar.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = admins.map(a => `
+        <div class="sala-card">
+          <div class="sala-card__info">
+            <h3>
+              ${escapeHtml(a.nome)}
+              <span class="badge ${a.ativo ? 'badge--active' : 'badge--done'}">${a.ativo ? 'Ativo' : 'Desativado'}</span>
+              ${a.role === 'superadmin' ? '<span class="badge badge--super">Super</span>' : ''}
+            </h3>
+            <p>${escapeHtml(a.email)} &bull; Criado em ${formatDate(a.criado_em)}</p>
+          </div>
+          <div class="sala-card__actions">
+            ${a.role !== 'superadmin' ? `
+              <button class="btn btn--sm btn--secondary" onclick="resetarSenha('${a.id}', '${escapeHtml(a.nome)}')">Resetar senha</button>
+              ${a.ativo
+                ? `<button class="btn btn--sm btn--secondary" onclick="toggleAdmin('${a.id}', false)">Desativar</button>`
+                : `<button class="btn btn--sm btn--primary" onclick="toggleAdmin('${a.id}', true)">Ativar</button>`
+              }
+              <button class="btn btn--sm btn--danger" onclick="deletarAdmin('${a.id}', '${escapeHtml(a.nome)}')">Deletar</button>
+            ` : '<span class="text-sm text-muted">Super Admin</span>'}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function abrirModalNovoAdmin() {
+      document.getElementById('modalNovoAdmin').classList.add('modal-overlay--active');
+      document.getElementById('adminEmail').value = '';
+      document.getElementById('adminNome').value = '';
+      document.getElementById('adminSenha').value = '';
+      document.getElementById('adminEmail').focus();
+    }
+
+    function fecharModalNovoAdmin() {
+      document.getElementById('modalNovoAdmin').classList.remove('modal-overlay--active');
+    }
+
+    async function criarAdmin() {
+      const email = document.getElementById('adminEmail').value.trim();
+      const nome = document.getElementById('adminNome').value.trim();
+      const senha = document.getElementById('adminSenha').value;
+
+      if (!email || !nome || !senha) {
+        showToast('Preencha todos os campos');
+        return;
+      }
+
+      const res = await authCriarAdmin(email, nome, senha);
+
+      if (res && res.ok) {
+        showToast('Admin criado com sucesso!');
+        fecharModalNovoAdmin();
+        await carregarAdmins();
+      } else {
+        showToast(res ? res.error : 'Erro ao criar admin');
+      }
+    }
+
+    async function toggleAdmin(adminId, ativo) {
+      const res = await authToggleAdmin(adminId, ativo);
+      if (res && res.ok) {
+        showToast(ativo ? 'Admin ativado!' : 'Admin desativado!');
+        await carregarAdmins();
+      } else {
+        showToast(res ? res.error : 'Erro');
+      }
+    }
+
+    function resetarSenha(adminId, nome) {
+      resetTargetId = adminId;
+      document.getElementById('resetSenhaInfo').textContent = `Nova senha para ${nome}:`;
+      document.getElementById('novaSenhaReset').value = '';
+      document.getElementById('modalResetSenha').classList.add('modal-overlay--active');
+      document.getElementById('novaSenhaReset').focus();
+    }
+
+    function fecharModalResetSenha() {
+      document.getElementById('modalResetSenha').classList.remove('modal-overlay--active');
+      resetTargetId = null;
+    }
+
+    async function confirmarResetSenha() {
+      const novaSenha = document.getElementById('novaSenhaReset').value;
+      if (!novaSenha || novaSenha.length < 6) {
+        showToast('Senha deve ter pelo menos 6 caracteres');
+        return;
+      }
+
+      const res = await authResetarSenha(resetTargetId, novaSenha);
+      if (res && res.ok) {
+        showToast('Senha resetada!');
+        fecharModalResetSenha();
+      } else {
+        showToast(res ? res.error : 'Erro ao resetar senha');
+      }
+    }
+
+    async function deletarAdmin(adminId, nome) {
+      if (!confirm(`Tem certeza que deseja deletar o admin "${nome}"? Esta ação não pode ser desfeita.`)) return;
+
+      const res = await authDeletarAdmin(adminId);
+      if (res && res.ok) {
+        showToast('Admin deletado!');
+        await carregarAdmins();
+      } else {
+        showToast(res ? res.error : 'Erro ao deletar');
+      }
+    }
+
+    (async function init() {
+      const user = await requireAuth(['superadmin']);
+      if (!user) return;
+      await carregarAdmins();
+    })();
+  </script>
+
+</body>
+</html>

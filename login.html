@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-index">
+
+  <div class="card-entry">
+    <div class="card-entry__logo">Alinha<span>Pro</span></div>
+    <h1 class="card-entry__title">Painel Administrativo</h1>
+    <p class="card-entry__subtitle">Faça login para acessar suas salas de consultoria.</p>
+
+    <form id="formLogin" onsubmit="return false;">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="seu@email.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="loginSenha">Senha</label>
+        <input type="password" id="loginSenha" placeholder="Sua senha" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn--primary btn--full" id="btnLogin">Entrar</button>
+    </form>
+
+    <div class="divider">ou</div>
+
+    <a href="index.html" class="btn btn--secondary btn--full">Entrar como cliente</a>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    (async function checkSession() {
+      const user = await authValidateSession();
+      if (user) {
+        window.location.href = 'admin.html';
+      }
+    })();
+
+    document.getElementById('formLogin').addEventListener('submit', async () => {
+      const email = document.getElementById('loginEmail').value.trim();
+      const senha = document.getElementById('loginSenha').value;
+
+      if (!email || !senha) {
+        showToast('Preencha todos os campos');
+        return;
+      }
+
+      const btn = document.getElementById('btnLogin');
+      btn.disabled = true;
+      btn.textContent = 'Entrando...';
+
+      const res = await authLogin(email, senha);
+
+      if (res && res.ok) {
+        showToast('Login realizado!');
+        window.location.href = 'admin.html';
+      } else {
+        showToast(res ? res.error : 'Erro ao fazer login');
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      }
+    });
+  </script>
+
+</body>
+</html>
