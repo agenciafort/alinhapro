@@ -250,11 +250,14 @@ body {
   flex-direction: column;
 }
 
+/* Mesma “faixa” que .chat-header (altura + padding vertical) para alinhar as duas colunas */
 .preview-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.4rem 0.75rem;
+  min-height: 2.75rem;
+  box-sizing: border-box;
   background: var(--gray-50);
   border-bottom: 1px solid var(--gray-200);
   gap: 0.5rem;
@@ -262,7 +265,9 @@ body {
 
 .preview-toolbar__url {
   flex: 1;
+  min-width: 0;
   font-size: 0.75rem;
+  line-height: 1;
   color: var(--gray-500);
   white-space: nowrap;
   overflow: hidden;
@@ -832,7 +837,8 @@ body:has(.sala-container) {
   min-height: 2.75rem;
   box-sizing: border-box;
   border-bottom: 1px solid var(--gray-200);
-  background: white;
+  /* Mesma base da toolbar do preview para a faixa parecer contínua entre colunas */
+  background: var(--gray-50);
 }
 
 .chat-header__title {
