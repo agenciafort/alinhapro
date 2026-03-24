@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Resumo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header" role="banner">
+    <a href="index.html" class="header__logo" title="Ir para início">Alinha<span>Pro</span></a>
+    <nav class="header__nav">
+      <a href="#" class="header__nav-link header__nav-link--cta" id="btnVoltarSala">Voltar para sala</a>
+    </nav>
+  </header>
+
+  <div class="resumo-container">
+    <div class="resumo-header">
+      <div>
+        <h1 id="resumoTitulo">Resumo da Sessão</h1>
+        <p class="text-sm text-muted" id="resumoSubtitulo">Carregando…</p>
+      </div>
+    </div>
+
+    <!-- DECISÕES -->
+    <div class="resumo-section" id="secaoDecisoes">
+      <div class="resumo-section__header" onclick="toggleSection('bodyDecisoes')">
+        <h2>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Decisões Registradas
+          <span class="count-badge" id="countDecisoes">0</span>
+        </h2>
+        <span class="text-sm text-muted">&#9660;</span>
+      </div>
+      <div class="resumo-section__body" id="bodyDecisoes">
+        <div class="empty-state">
+          <p class="text-sm text-muted">Nenhuma decisão registrada ainda.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTÓRICO DO CHAT -->
+    <div class="resumo-section">
+      <div class="resumo-section__header" onclick="toggleSection('bodyChat')">
+        <h2>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Histórico Completo do Chat
+          <span class="count-badge" id="countMsgs">0</span>
+        </h2>
+        <span class="text-sm text-muted">&#9660;</span>
+      </div>
+      <div class="resumo-section__body resumo-section__body--tall" id="bodyChat">
+        <div class="empty-state">
+          <p class="text-sm text-muted">Nenhuma mensagem no chat.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANOTAÇÕES DO CONSULTOR -->
+    <div class="resumo-section" id="secaoAnotacoes">
+      <div class="resumo-section__header" onclick="toggleSection('bodyAnotacoes')">
+        <h2>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Anotações do Projeto
+          <span class="count-badge" id="countAnotacoes">—</span>
+        </h2>
+        <span class="text-sm text-muted">&#9660;</span>
+      </div>
+      <div class="resumo-section__body resumo-section__body--tall" id="bodyAnotacoes">
+        <div class="doc-content" id="anotacoesContent">
+          <div class="empty-state">
+            <p class="text-sm text-muted">Carregando documento…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/salas.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/documento.js"></script>
+  <script>
+    function toggleSection(id) {
+      const el = document.getElementById(id);
+      el.style.display = el.style.display === 'none' ? '' : 'none';
+    }
+
+    async function carregarDecisoes(salaId) {
+      const { data, error } = await sb
+        .from('decisoes')
+        .select('*')
+        .eq('sala_id', salaId)
+        .order('criada_em', { ascending: true });
+      if (error || !data) return [];
+      return data;
+    }
+
+    async function init() {
+      const salaId = getParam('id');
+      if (!salaId) { window.location.href = 'index.html'; return; }
+
+      document.getElementById('btnVoltarSala').href = `sala.html?id=${salaId}`;
+
+      const sala = await buscarSala(salaId);
+      if (!sala) {
+        showToast('Sala não encontrada');
+        setTimeout(() => window.location.href = 'index.html', 1500);
+        return;
+      }
+
+      document.getElementById('resumoTitulo').textContent = `Resumo — ${sala.nome}`;
+      document.getElementById('resumoSubtitulo').textContent = `Criada em ${formatDate(sala.criada_em)} · Status: ${sala.status === 'ativa' ? 'Ativa' : 'Concluída'}`;
+      document.title = `AlinhaPro — Resumo · ${sala.nome}`;
+
+      // Decisões
+      const decisoes = await carregarDecisoes(salaId);
+      const bodyDecisoes = document.getElementById('bodyDecisoes');
+      document.getElementById('countDecisoes').textContent = decisoes.length;
+
+      if (decisoes.length > 0) {
+        bodyDecisoes.innerHTML = decisoes.map(d => `
+          <div class="decisao-item">
+            <div class="decisao-item__icon">&#10003;</div>
+            <div class="decisao-item__content">
+              <div class="decisao-item__text">${escapeHtml(d.texto)}</div>
+              <div class="decisao-item__meta">${d.autor} · ${formatDate(d.criada_em)} às ${formatTime(d.criada_em)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Chat
+      const mensagens = await carregarMensagens(salaId);
+      const bodyChat = document.getElementById('bodyChat');
+      document.getElementById('countMsgs').textContent = mensagens.length;
+
+      const decisaoMsgIds = new Set(decisoes.map(d => d.mensagem_id).filter(Boolean));
+
+      if (mensagens.length > 0) {
+        bodyChat.innerHTML = mensagens.map(m => {
+          const isDecisao = decisaoMsgIds.has(m.id);
+          return `
+            <div class="chat-log-item ${isDecisao ? 'chat-log-item--decisao' : ''}">
+              <span class="chat-log-item__time">${formatTime(m.enviada_em)}</span>
+              <span class="chat-log-item__author">${escapeHtml(m.autor)}:</span>
+              <span class="chat-log-item__text">${escapeHtml(m.conteudo)}${isDecisao ? ' <strong style="color:var(--success);">[DECISÃO]</strong>' : ''}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Anotações (documento)
+      const docContent = document.getElementById('anotacoesContent');
+      if (sala.documento && sala.documento.trim()) {
+        docContent.innerHTML = renderizarMarkdown(sala.documento);
+        document.getElementById('countAnotacoes').textContent = 'Sim';
+      } else {
+        docContent.innerHTML = '<div class="empty-state"><p class="text-sm text-muted">Nenhuma anotação feita nesta sala.</p></div>';
+        document.getElementById('countAnotacoes').textContent = '—';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    init();
+  </script>
+
+</body>
+</html>

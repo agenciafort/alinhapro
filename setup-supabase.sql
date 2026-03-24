@@ -12,6 +12,7 @@ CREATE TABLE public.salas (
   documento TEXT DEFAULT '',
   status TEXT DEFAULT 'ativa' CHECK (status IN ('ativa', 'concluida')),
   senha_admin_hash TEXT NOT NULL,
+  preview_url TEXT DEFAULT '',
   criada_em TIMESTAMPTZ DEFAULT now()
 );
 
@@ -36,8 +37,21 @@ CREATE TABLE public.mensagens (
 
 CREATE INDEX idx_mensagens_sala ON public.mensagens(sala_id, enviada_em);
 
+CREATE TABLE public.decisoes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sala_id UUID NOT NULL REFERENCES public.salas(id) ON DELETE CASCADE,
+  mensagem_id UUID REFERENCES public.mensagens(id) ON DELETE SET NULL,
+  texto TEXT NOT NULL,
+  autor TEXT NOT NULL,
+  status TEXT DEFAULT 'aprovada' CHECK (status IN ('aprovada', 'pendente', 'rejeitada')),
+  criada_em TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_decisoes_sala ON public.decisoes(sala_id, criada_em);
+
 ALTER PUBLICATION supabase_realtime ADD TABLE salas;
 ALTER PUBLICATION supabase_realtime ADD TABLE mensagens;
+ALTER PUBLICATION supabase_realtime ADD TABLE decisoes;
 
 ALTER TABLE salas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mensagens ENABLE ROW LEVEL SECURITY;
@@ -52,14 +66,18 @@ CREATE POLICY "Acesso público mensagens" ON public.mensagens FOR ALL USING (tru
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.mensagens TO anon, authenticated;
 
+ALTER TABLE public.decisoes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Acesso público decisoes" ON public.decisoes FOR ALL USING (true) WITH CHECK (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.decisoes TO anon, authenticated;
+
 REVOKE ALL ON public.salas FROM anon;
-GRANT SELECT (id, nome, documento, status, criada_em) ON public.salas TO anon;
+GRANT SELECT (id, nome, documento, status, preview_url, criada_em) ON public.salas TO anon;
 
 REVOKE ALL ON public.salas FROM authenticated;
-GRANT SELECT (id, nome, documento, status, criada_em) ON public.salas TO authenticated;
+GRANT SELECT (id, nome, documento, status, preview_url, criada_em) ON public.salas TO authenticated;
 
 -- Funções (mesmo corpo da migração)
-CREATE OR REPLACE FUNCTION public.rpc_criar_sala(p_nome text, p_senha text)
+CREATE OR REPLACE FUNCTION public.rpc_criar_sala(p_nome text, p_senha text, p_preview_url text DEFAULT '')
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -77,14 +95,15 @@ BEGIN
     RAISE EXCEPTION 'senha deve ter pelo menos 4 caracteres';
   END IF;
   v_doc := '# ' || trim(p_nome) || E'\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n';
-  INSERT INTO public.salas (nome, documento, status, senha_admin_hash)
-  VALUES (trim(p_nome), v_doc, 'ativa', crypt(p_senha, gen_salt('bf')))
+  INSERT INTO public.salas (nome, documento, status, senha_admin_hash, preview_url)
+  VALUES (trim(p_nome), v_doc, 'ativa', crypt(p_senha, gen_salt('bf')), coalesce(trim(p_preview_url), ''))
   RETURNING id, criada_em INTO v_id, v_criada;
   RETURN jsonb_build_object(
     'id', v_id,
     'nome', trim(p_nome),
     'documento', v_doc,
     'status', 'ativa',
+    'preview_url', coalesce(trim(p_preview_url), ''),
     'criada_em', v_criada
   );
 END;
@@ -152,7 +171,27 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.rpc_criar_sala(text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_criar_sala(text, text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_admin_login(uuid, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_atualizar_documento(uuid, uuid, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_alterar_status_sala(uuid, text, text) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.rpc_atualizar_preview_url(p_sala_id uuid, p_token uuid, p_url text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.admin_sessions s
+    WHERE s.sala_id = p_sala_id AND s.token = p_token AND s.expires_at > now()
+  ) THEN
+    RETURN false;
+  END IF;
+  UPDATE public.salas SET preview_url = coalesce(trim(p_url), '') WHERE id = p_sala_id;
+  RETURN true;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_atualizar_preview_url(uuid, uuid, text) TO anon, authenticated;
