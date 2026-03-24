@@ -28,12 +28,12 @@
   <div class="sala-container">
     <!-- PREVIEW ou fallback documento -->
     <div class="sala-documento">
-      <!-- Toolbar fora do iframe: consultor vê «Alterar URL» mesmo sem preview_url -->
-      <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" style="display:none;" role="region" aria-label="Preview do projeto">
+      <!-- Toolbar: consultor vê «Alterar URL» mesmo sem preview_url -->
+      <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" hidden>
         <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
         <div class="preview-toolbar__actions">
           <button type="button" class="btn btn--sm btn--secondary" id="btnRecarregarPreview" title="Recarregar preview">Recarregar</button>
-          <button type="button" class="btn btn--sm btn--secondary" id="btnEditarUrl" style="display:none;" title="Definir ou alterar URL do site do cliente">Alterar URL</button>
+          <button type="button" class="btn btn--sm btn--secondary" id="btnEditarUrl" hidden title="Definir ou alterar URL do site do cliente">Alterar URL</button>
         </div>
       </div>
       <div class="preview-container" id="panelPreview" style="display:none;">
@@ -236,23 +236,21 @@
       sincronizarPreviewChrome = function () {
         const hasUrl = !!previewUrlAtual;
         if (hasUrl) {
-          previewToolbarRow.style.display = 'flex';
+          previewToolbarRow.hidden = false;
           previewUrlLabel.textContent = previewUrlAtual;
-          btnEditarUrl.style.display = isAdmin ? '' : 'none';
-          btnRecarregar.style.display = '';
+          btnEditarUrl.hidden = !isAdmin;
           panelPreview.style.display = '';
           panelPreview.classList.add('preview-container--active');
           panelDocumento.style.display = 'none';
         } else if (isAdmin) {
-          previewToolbarRow.style.display = 'flex';
-          previewUrlLabel.textContent = 'Sem URL — clique em «Alterar URL» e cole o site do cliente (Netlify/Vercel).';
-          btnEditarUrl.style.display = '';
-          btnRecarregar.style.display = '';
+          previewToolbarRow.hidden = false;
+          previewUrlLabel.textContent = 'Sem URL — clique em «Alterar URL» para colar o site do cliente';
+          btnEditarUrl.hidden = false;
           panelPreview.style.display = 'none';
           panelPreview.classList.remove('preview-container--active');
           panelDocumento.style.display = '';
         } else {
-          previewToolbarRow.style.display = 'none';
+          previewToolbarRow.hidden = true;
           panelDocumento.style.display = '';
           panelPreview.style.display = 'none';
           panelPreview.classList.remove('preview-container--active');
@@ -290,9 +288,15 @@
       previewUrlAtual = (salaAtual.preview_url || '').trim();
 
       isAdmin = !!getAdminToken(salaId);
-      if (previewUrlAtual) ativarPreview(previewUrlAtual);
-      if (isAdmin) mostrarUiAdmin();
-      if (!previewUrlAtual && !isAdmin) sincronizarPreviewChrome();
+      if (isAdmin) {
+        mostrarUiAdmin();
+      }
+      // Sync após isAdmin estar definido — garante barra visível
+      if (previewUrlAtual) {
+        ativarPreview(previewUrlAtual);
+      } else {
+        sincronizarPreviewChrome();
+      }
 
       if (adminLegacy) {
         const ok = await tentarLoginConsultor(adminLegacy);
@@ -354,6 +358,8 @@
       });
 
       atualizarNavSala();
+      // Garantia final: sync de preview após tudo estar montado
+      sincronizarPreviewChrome();
 
       document.getElementById('navSairConsultor').addEventListener('click', () => {
         if (!salaIdGlobal) return;
