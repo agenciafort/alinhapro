@@ -89,7 +89,7 @@
       </div>
 
       <div class="chat-input">
-        <input type="text" id="chatInput" placeholder="Digite sua mensagem..." onkeydown="if(event.key==='Enter')enviarMsg()">
+        <input type="text" id="chatInput" name="mensagem_chat_alinhapro" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="true" data-lpignore="true" data-1p-ignore="true" data-form-type="other" placeholder="Digite sua mensagem..." readonly onkeydown="if(event.key==='Enter')enviarMsg()">
         <button onclick="enviarMsg()">Enviar</button>
         <button class="btn-decisao" id="btnDecisao" hidden title="Registrar a última mensagem como decisão aprovada" onclick="registrarDecisao()">&#10003;</button>
       </div>
@@ -454,6 +454,16 @@
     btnCancelar.addEventListener('click', () => { btnEditar.style.display = ''; btnSalvar.style.display = 'none'; btnCancelar.style.display = 'none'; });
     btnSalvar.addEventListener('click', () => { btnEditar.style.display = ''; btnSalvar.style.display = 'none'; btnCancelar.style.display = 'none'; });
 
+    function setupChatInputSemAutofill() {
+      const el = document.getElementById('chatInput');
+      if (!el) return;
+      function unlock() {
+        el.removeAttribute('readonly');
+      }
+      el.addEventListener('focus', unlock, { once: true });
+      el.addEventListener('pointerdown', unlock, { once: true });
+    }
+
     function setupChatToggle() {
       const CHAT_KEY = 'alinhapro_sala_chat_collapsed';
       const container = document.getElementById('salaContainer');
@@ -482,6 +492,7 @@
 
     init();
     setupChatToggle();
+    setupChatInputSemAutofill();
 
     // ===== SISTEMA DE PAGAMENTO =====
     let propostaAtual = null;

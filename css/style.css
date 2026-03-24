@@ -781,6 +781,11 @@ body:has(.sala-container) {
   color: var(--gray-800);
 }
 
+.chat-input input:read-only {
+  background: white;
+  cursor: text;
+}
+
 .chat-input input:focus {
   outline: none;
   border-color: var(--primary);
