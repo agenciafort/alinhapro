@@ -77,6 +77,9 @@
         </div>
       </div>
 
+      <!-- Banner de pagamento -->
+      <div class="pag-banner" id="pagBanner" hidden></div>
+
       <div class="chat-messages" id="chatMessages">
         <div class="empty-state">
           <p class="text-sm text-muted">Nenhuma mensagem ainda. Comece a conversa!</p>
@@ -87,6 +90,62 @@
         <input type="text" id="chatInput" placeholder="Digite sua mensagem..." onkeydown="if(event.key==='Enter')enviarMsg()">
         <button onclick="enviarMsg()">Enviar</button>
         <button class="btn-decisao" id="btnDecisao" hidden title="Registrar a última mensagem como decisão aprovada" onclick="registrarDecisao()">&#10003;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAINEL DE PAGAMENTO (aparece acima do chat quando há proposta) -->
+  <div class="modal-overlay" id="modalProposta">
+    <div class="modal">
+      <h2 id="modalPropostaTitulo">Proposta de Valor</h2>
+      <div id="modalPropostaConteudo"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: Gerar cobrança (consultor preenche dados do cliente) -->
+  <div class="modal-overlay" id="modalCobranca">
+    <div class="modal">
+      <h2>Gerar Cobrança</h2>
+      <p class="text-sm text-muted mb-2">Preencha os dados do cliente para gerar o pagamento.</p>
+      <div class="form-group">
+        <label for="cobClienteNome">Nome completo do cliente</label>
+        <input type="text" id="cobClienteNome" placeholder="João da Silva">
+      </div>
+      <div class="form-group">
+        <label for="cobClienteCpf">CPF ou CNPJ</label>
+        <input type="text" id="cobClienteCpf" placeholder="000.000.000-00">
+      </div>
+      <div class="form-group">
+        <label for="cobClienteEmail">Email (opcional)</label>
+        <input type="email" id="cobClienteEmail" placeholder="cliente@email.com">
+      </div>
+      <div class="form-group">
+        <label for="cobMetodo">Forma de pagamento</label>
+        <select id="cobMetodo">
+          <option value="PIX">PIX</option>
+          <option value="BOLETO">Boleto</option>
+          <option value="CREDIT_CARD">Cartão de crédito</option>
+        </select>
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" onclick="fecharModalCobranca()">Cancelar</button>
+        <button class="btn btn--primary" id="btnGerarCobranca" onclick="confirmarCobranca()">Gerar Cobrança</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Disputa -->
+  <div class="modal-overlay" id="modalDisputa">
+    <div class="modal">
+      <h2>Abrir Disputa</h2>
+      <p class="text-sm text-muted mb-2">Descreva o motivo da insatisfação. Vocês terão 7 dias para negociar.</p>
+      <div class="form-group">
+        <label for="disputaMotivo">Motivo</label>
+        <textarea id="disputaMotivo" rows="3" placeholder="Descreva o que não ficou como esperado..."></textarea>
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" onclick="fecharModalDisputa()">Cancelar</button>
+        <button class="btn btn--danger" onclick="confirmarDisputa()">Abrir Disputa</button>
       </div>
     </div>
   </div>
@@ -115,6 +174,7 @@
   <script src="js/salas.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/documento.js"></script>
+  <script src="js/pagamento.js"></script>
   <script>
     let salaAtual = null;
     let meuNome = localStorage.getItem('alinhapro_nome') || 'Visitante';
@@ -398,6 +458,291 @@
     btnSalvar.addEventListener('click', () => { btnEditar.style.display = ''; btnSalvar.style.display = 'none'; btnCancelar.style.display = 'none'; });
 
     init();
+
+    // ===== SISTEMA DE PAGAMENTO =====
+    let propostaAtual = null;
+    let pagamentoAtual = null;
+    let disputaAtual = null;
+
+    async function atualizarPainelPagamento() {
+      if (!salaIdGlobal) return;
+      propostaAtual = await carregarProposta(salaIdGlobal);
+      pagamentoAtual = await carregarPagamento(salaIdGlobal);
+      disputaAtual = await carregarDisputa(salaIdGlobal);
+      renderPagBanner();
+    }
+
+    function renderPagBanner() {
+      const banner = document.getElementById('pagBanner');
+      if (!propostaAtual && !pagamentoAtual) {
+        // Sem proposta — consultor pode criar
+        if (isAdmin) {
+          banner.hidden = false;
+          banner.innerHTML = `
+            <div class="pag-banner__content">
+              <span class="text-sm text-muted">Sala gratuita</span>
+              <button class="btn btn--sm btn--primary" onclick="abrirModalProposta()">Definir Preço</button>
+            </div>`;
+        } else {
+          banner.hidden = true;
+        }
+        return;
+      }
+
+      banner.hidden = false;
+
+      // Disputa aberta
+      if (disputaAtual && disputaAtual.status === 'aberta') {
+        const valor = pagamentoAtual ? pagamentoAtual.valor : 0;
+        let html = `<div class="pag-banner__content pag-banner--disputa">
+          <div><strong>Disputa aberta</strong><br><span class="text-sm">${disputaAtual.motivo}</span></div>
+          <div class="text-sm text-muted">Valor total: ${formatarDinheiro(valor)}</div>`;
+
+        if (isAdmin) {
+          html += `<div class="mt-1">
+            <span class="text-sm">Sua proposta de reembolso ao cliente:</span>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.25rem;">
+              <input type="number" id="disputaValorConsultor" step="0.01" min="0" max="${valor}" placeholder="R$" style="width:120px;padding:0.4rem;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:0.85rem;">
+              <button class="btn btn--sm btn--primary" onclick="enviarPropostaDisputa('consultor')">Enviar</button>
+            </div>
+            ${disputaAtual.proposta_consultor != null ? '<span class="text-sm text-muted">Você propôs: ' + formatarDinheiro(disputaAtual.proposta_consultor) + '</span>' : ''}
+            ${disputaAtual.proposta_cliente != null ? '<br><span class="text-sm text-muted">Cliente propôs: ' + formatarDinheiro(disputaAtual.proposta_cliente) + '</span>' : ''}
+          </div>`;
+        } else {
+          html += `<div class="mt-1">
+            <span class="text-sm">Quanto você aceita receber de volta?</span>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.25rem;">
+              <input type="number" id="disputaValorCliente" step="0.01" min="0" max="${valor}" placeholder="R$" style="width:120px;padding:0.4rem;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:0.85rem;">
+              <button class="btn btn--sm btn--primary" onclick="enviarPropostaDisputa('cliente')">Enviar</button>
+            </div>
+            ${disputaAtual.proposta_cliente != null ? '<span class="text-sm text-muted">Você propôs: ' + formatarDinheiro(disputaAtual.proposta_cliente) + '</span>' : ''}
+            ${disputaAtual.proposta_consultor != null ? '<br><span class="text-sm text-muted">Consultor propôs: ' + formatarDinheiro(disputaAtual.proposta_consultor) + '</span>' : ''}
+          </div>`;
+        }
+
+        const expira = new Date(disputaAtual.expira_em);
+        const diasRestantes = Math.max(0, Math.ceil((expira - new Date()) / (1000 * 60 * 60 * 24)));
+        html += `<div class="text-sm text-muted mt-1">Expira em ${diasRestantes} dia(s). Se não houver acordo: 80% cliente / 20% consultor.</div>`;
+        html += `</div>`;
+        banner.innerHTML = html;
+        return;
+      }
+
+      // Pagamento confirmado — aguardando conclusão
+      if (pagamentoAtual && pagamentoAtual.status === 'confirmado') {
+        let html = `<div class="pag-banner__content pag-banner--pago">
+          <div><strong>Pago</strong> — ${formatarDinheiro(pagamentoAtual.valor)}</div>
+          <span class="text-sm text-muted">Valor em garantia até a conclusão do projeto</span>`;
+        if (!isAdmin) {
+          html += `<div class="mt-1" style="display:flex;gap:0.5rem;">
+            <button class="btn btn--sm btn--primary" onclick="aprovarEntrega()">Aprovar Entrega</button>
+            <button class="btn btn--sm btn--danger" onclick="document.getElementById('modalDisputa').classList.add('modal-overlay--active')">Abrir Disputa</button>
+          </div>`;
+        }
+        html += `</div>`;
+        banner.innerHTML = html;
+        return;
+      }
+
+      // Pagamento liberado
+      if (pagamentoAtual && pagamentoAtual.status === 'liberado') {
+        banner.innerHTML = `<div class="pag-banner__content pag-banner--liberado">
+          <div><strong>Pagamento liberado</strong> — ${formatarDinheiro(pagamentoAtual.valor)}</div>
+          <span class="text-sm text-muted">Projeto concluído e pago</span>
+        </div>`;
+        return;
+      }
+
+      // Pagamento resolvido (disputa)
+      if (pagamentoAtual && pagamentoAtual.status === 'resolvido') {
+        banner.innerHTML = `<div class="pag-banner__content pag-banner--liberado">
+          <div><strong>Disputa resolvida</strong></div>
+          <span class="text-sm text-muted">Valores divididos conforme acordo</span>
+        </div>`;
+        return;
+      }
+
+      // Pagamento pendente — mostrando link
+      if (pagamentoAtual && pagamentoAtual.status === 'pendente') {
+        let html = `<div class="pag-banner__content pag-banner--aguardando">
+          <div><strong>Aguardando pagamento</strong> — ${formatarDinheiro(pagamentoAtual.valor)}</div>`;
+        if (pagamentoAtual.link_pagamento) {
+          html += `<a href="${pagamentoAtual.link_pagamento}" target="_blank" class="btn btn--sm btn--primary">Pagar agora</a>`;
+        }
+        if (pagamentoAtual.pix_copia_cola) {
+          html += `<div class="mt-1"><span class="text-sm">PIX Copia e Cola:</span><br>
+            <input type="text" value="${pagamentoAtual.pix_copia_cola}" readonly onclick="this.select();navigator.clipboard.writeText(this.value);showToast('Copiado!')" style="width:100%;font-size:0.75rem;padding:0.3rem;margin-top:0.25rem;border:1px solid var(--gray-300);border-radius:var(--radius);">
+          </div>`;
+        }
+        html += `</div>`;
+        banner.innerHTML = html;
+        return;
+      }
+
+      // Proposta pendente
+      if (propostaAtual && propostaAtual.status === 'pendente') {
+        if (isAdmin) {
+          banner.innerHTML = `<div class="pag-banner__content pag-banner--pendente">
+            <div><strong>Proposta enviada</strong> — ${formatarDinheiro(propostaAtual.valor)}</div>
+            <span class="text-sm text-muted">Aguardando resposta do cliente</span>
+          </div>`;
+        } else {
+          banner.innerHTML = `<div class="pag-banner__content pag-banner--pendente">
+            <div><strong>Proposta de valor: ${formatarDinheiro(propostaAtual.valor)}</strong></div>
+            ${propostaAtual.descricao ? '<p class="text-sm" style="margin:0.5rem 0;">' + propostaAtual.descricao + '</p>' : ''}
+            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+              <button class="btn btn--sm btn--primary" onclick="aceitarProposta()">Aceitar</button>
+              <button class="btn btn--sm btn--secondary" onclick="recusarProposta()">Recusar</button>
+            </div>
+          </div>`;
+        }
+        return;
+      }
+
+      // Proposta aceita — consultor gera cobrança
+      if (propostaAtual && propostaAtual.status === 'aceita' && (!pagamentoAtual || pagamentoAtual.status === 'pendente')) {
+        if (isAdmin && !pagamentoAtual) {
+          banner.innerHTML = `<div class="pag-banner__content pag-banner--aceita">
+            <div><strong>Proposta aceita!</strong> — ${formatarDinheiro(propostaAtual.valor)}</div>
+            <button class="btn btn--sm btn--primary" onclick="document.getElementById('modalCobranca').classList.add('modal-overlay--active')">Gerar Cobrança</button>
+          </div>`;
+        } else {
+          banner.innerHTML = `<div class="pag-banner__content pag-banner--aceita">
+            <div><strong>Proposta aceita</strong> — ${formatarDinheiro(propostaAtual.valor)}</div>
+            <span class="text-sm text-muted">Aguardando geração da cobrança pelo consultor</span>
+          </div>`;
+        }
+        return;
+      }
+
+      // Proposta recusada — consultor pode fazer nova
+      if (propostaAtual && propostaAtual.status === 'recusada') {
+        if (isAdmin) {
+          banner.innerHTML = `<div class="pag-banner__content pag-banner--recusada">
+            <div><strong>Proposta recusada</strong></div>
+            <button class="btn btn--sm btn--primary" onclick="abrirModalProposta()">Fazer Nova Proposta</button>
+          </div>`;
+        } else {
+          banner.innerHTML = `<div class="pag-banner__content pag-banner--recusada">
+            <div><strong>Proposta recusada</strong></div>
+            <span class="text-sm text-muted">Aguardando nova proposta do consultor</span>
+          </div>`;
+        }
+        return;
+      }
+
+      banner.hidden = true;
+    }
+
+    function abrirModalProposta() {
+      const modal = document.getElementById('modalProposta');
+      const conteudo = document.getElementById('modalPropostaConteudo');
+      conteudo.innerHTML = `
+        <div class="form-group">
+          <label for="propostaValor">Valor do serviço (R$)</label>
+          <input type="number" id="propostaValor" step="0.01" min="1" placeholder="Ex: 1500.00">
+        </div>
+        <div class="form-group">
+          <label for="propostaDesc">Descrição (opcional)</label>
+          <textarea id="propostaDesc" rows="3" placeholder="O que está incluído no valor..."></textarea>
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--secondary" onclick="document.getElementById('modalProposta').classList.remove('modal-overlay--active')">Cancelar</button>
+          <button class="btn btn--primary" onclick="enviarProposta()">Enviar Proposta</button>
+        </div>`;
+      modal.classList.add('modal-overlay--active');
+    }
+
+    async function enviarProposta() {
+      const valor = parseFloat(document.getElementById('propostaValor').value);
+      const desc = document.getElementById('propostaDesc').value.trim();
+      if (!valor || valor <= 0) { showToast('Digite um valor válido'); return; }
+      const res = await criarProposta(salaIdGlobal, valor, desc);
+      if (res) {
+        document.getElementById('modalProposta').classList.remove('modal-overlay--active');
+        showToast('Proposta enviada!');
+        await atualizarPainelPagamento();
+      }
+    }
+
+    async function aceitarProposta() {
+      if (!propostaAtual) return;
+      const res = await responderProposta(salaIdGlobal, propostaAtual.id, true);
+      if (res) { showToast('Proposta aceita!'); await atualizarPainelPagamento(); }
+    }
+
+    async function recusarProposta() {
+      if (!propostaAtual) return;
+      if (!confirm('Tem certeza que deseja recusar esta proposta?')) return;
+      const res = await responderProposta(salaIdGlobal, propostaAtual.id, false);
+      if (res) { showToast('Proposta recusada.'); await atualizarPainelPagamento(); }
+    }
+
+    function fecharModalCobranca() {
+      document.getElementById('modalCobranca').classList.remove('modal-overlay--active');
+    }
+
+    async function confirmarCobranca() {
+      const nome = document.getElementById('cobClienteNome').value.trim();
+      const cpf = document.getElementById('cobClienteCpf').value.trim();
+      const email = document.getElementById('cobClienteEmail').value.trim();
+      const metodo = document.getElementById('cobMetodo').value;
+
+      if (!nome || !cpf) { showToast('Nome e CPF/CNPJ são obrigatórios'); return; }
+
+      const btn = document.getElementById('btnGerarCobranca');
+      btn.disabled = true; btn.textContent = 'Gerando...';
+
+      const res = await gerarCobranca(salaIdGlobal, propostaAtual.id, propostaAtual.valor, nome, cpf, email, metodo);
+
+      btn.disabled = false; btn.textContent = 'Gerar Cobrança';
+
+      if (res) {
+        fecharModalCobranca();
+        showToast('Cobrança gerada! O cliente pode pagar agora.');
+        await atualizarPainelPagamento();
+      }
+    }
+
+    async function aprovarEntrega() {
+      if (!confirm('Ao aprovar, o valor será liberado para o consultor. Confirma?')) return;
+      const ok = await liberarPagamento(salaIdGlobal);
+      if (ok) { showToast('Entrega aprovada! Pagamento liberado.'); await atualizarPainelPagamento(); }
+    }
+
+    function fecharModalDisputa() {
+      document.getElementById('modalDisputa').classList.remove('modal-overlay--active');
+    }
+
+    async function confirmarDisputa() {
+      const motivo = document.getElementById('disputaMotivo').value.trim();
+      if (!motivo) { showToast('Descreva o motivo'); return; }
+      const res = await abrirDisputa(salaIdGlobal, motivo);
+      if (res) { fecharModalDisputa(); showToast('Disputa aberta.'); await atualizarPainelPagamento(); }
+    }
+
+    async function enviarPropostaDisputa(lado) {
+      const inputId = lado === 'cliente' ? 'disputaValorCliente' : 'disputaValorConsultor';
+      const valor = parseFloat(document.getElementById(inputId).value);
+      if (isNaN(valor) || valor < 0) { showToast('Digite um valor válido'); return; }
+      const res = await proporValorDisputa(disputaAtual.id, valor, lado);
+      if (res) {
+        if (res.acordo) {
+          showToast('Acordo fechado! Valores: Cliente ' + formatarDinheiro(res.valor_cliente) + ' / Consultor ' + formatarDinheiro(res.valor_consultor));
+        } else {
+          showToast('Proposta enviada. Aguardando a outra parte.');
+        }
+        await atualizarPainelPagamento();
+      }
+    }
+
+    // Carregar e ouvir mudanças de pagamento
+    setTimeout(async () => {
+      if (salaIdGlobal) {
+        await atualizarPainelPagamento();
+        ouvirMudancasPagamento(salaIdGlobal, () => atualizarPainelPagamento());
+      }
+    }, 1000);
 
     // Proteções anti-cópia para clientes (não-admins)
     (function antiCopy() {

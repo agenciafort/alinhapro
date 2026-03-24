@@ -1442,6 +1442,56 @@ body {
   .fases-page { padding: 1rem; }
 }
 
+/* ====== PAGAMENTO BANNER ====== */
+.pag-banner {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.pag-banner__content {
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+
+.pag-banner--pendente {
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+}
+
+.pag-banner--aceita {
+  background: #dcfce7;
+  border-left: 3px solid var(--success);
+}
+
+.pag-banner--aguardando {
+  background: #dbeafe;
+  border-left: 3px solid var(--primary);
+}
+
+.pag-banner--pago {
+  background: #dcfce7;
+  border-left: 3px solid var(--success);
+}
+
+.pag-banner--liberado {
+  background: #f0fdf4;
+  border-left: 3px solid var(--success);
+}
+
+.pag-banner--recusada {
+  background: #fef2f2;
+  border-left: 3px solid var(--danger);
+}
+
+.pag-banner--disputa {
+  background: #fef2f2;
+  border-left: 3px solid var(--danger);
+}
+
+.pag-banner strong {
+  color: var(--gray-800);
+}
+
 /* ====== UTILITIES ====== */
 .mt-1 { margin-top: 0.5rem; }
 .mt-2 { margin-top: 1rem; }

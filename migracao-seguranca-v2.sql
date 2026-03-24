@@ -138,14 +138,15 @@ SET search_path = public
 AS $$
 DECLARE
   v_count integer;
+  v_count2 integer;
 BEGIN
   DELETE FROM public.admin_sessions WHERE expires_at < now();
   GET DIAGNOSTICS v_count = ROW_COUNT;
 
   DELETE FROM public.user_sessions WHERE expires_at < now();
-  GET DIAGNOSTICS v_count = v_count + ROW_COUNT;
+  GET DIAGNOSTICS v_count2 = ROW_COUNT;
 
-  RETURN v_count;
+  RETURN v_count + v_count2;
 END;
 $$;
 
