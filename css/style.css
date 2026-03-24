@@ -470,6 +470,7 @@ body:has(.sala-container) {
 }
 
 .sala-chat-wrap {
+  position: relative;
   flex-shrink: 0;
   width: 380px;
   min-width: 320px;
@@ -478,6 +479,39 @@ body:has(.sala-container) {
   display: flex;
   flex-direction: column;
   transition: width 0.22s ease, min-width 0.22s ease, opacity 0.2s ease;
+}
+
+/* Controle na borda entre preview e chat: seta › = “empurrar” o painel para ver tela cheia */
+.sala-chat__edge-toggle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  width: 40px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(180deg, #fff 0%, var(--gray-50) 100%);
+  color: var(--primary);
+  box-shadow: -3px 0 12px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.sala-chat__edge-toggle:hover {
+  background: #fff;
+  box-shadow: -4px 0 16px rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+}
+
+.sala-chat__edge-toggle:active {
+  transform: translate(-50%, -50%) scale(0.97);
 }
 
 .sala-container.sala--chat-collapsed .sala-chat-wrap {
@@ -495,6 +529,8 @@ body:has(.sala-container) {
   display: flex;
   flex-direction: column;
   background: var(--gray-50);
+  box-sizing: border-box;
+  padding-left: 10px;
 }
 
 .chat-fab {
@@ -669,10 +705,6 @@ body:has(.sala-container) {
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--gray-200);
   background: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
 }
 
 .chat-header__title {
@@ -682,29 +714,6 @@ body:has(.sala-container) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-width: 0;
-}
-
-.chat-header__collapse {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--gray-300);
-  border-radius: 6px;
-  background: var(--gray-50);
-  color: var(--gray-600);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-}
-
-.chat-header__collapse:hover {
-  background: var(--gray-100);
-  border-color: var(--gray-400);
-  color: var(--primary);
 }
 
 .chat-messages {
