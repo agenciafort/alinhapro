@@ -28,7 +28,7 @@ function isSuperAdmin() {
   return user && user.role === 'superadmin';
 }
 
-function isAdmin() {
+function isAuthAdmin() {
   const user = getAuthUser();
   return user && (user.role === 'admin' || user.role === 'superadmin');
 }
