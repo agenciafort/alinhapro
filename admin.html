@@ -117,6 +117,7 @@
               ? `<button class="btn btn--sm btn--secondary" onclick="concluirSala('${s.id}')">Concluir</button>`
               : `<button class="btn btn--sm btn--secondary" onclick="reativarSala('${s.id}')">Reativar</button>`
             }
+            <button class="btn btn--sm btn--danger" onclick="deletarSala('${s.id}', '${escapeHtmlAdmin(s.nome)}')">Deletar</button>
           </div>
         </div>
       `).join('');
@@ -241,6 +242,55 @@
       const ok = await alterarStatusSala(salaId, 'ativa', senha);
       if (!ok) return;
       showToast('Sala reativada');
+      await carregarListaSalas();
+    }
+
+    async function deletarSala(salaId, nomeSala) {
+      const confirma = prompt('ATENÇÃO: Isso vai deletar a sala, o repositório e o site do Netlify.\n\nDigite a senha de administrador para confirmar:');
+      if (!confirma) return;
+
+      showToast('Deletando sala e projeto...');
+
+      // 1. Deletar sala no Supabase
+      const { data, error } = await sb.rpc('rpc_deletar_sala', { p_sala_id: salaId, p_senha: confirma });
+      if (error) {
+        showToast('Erro: ' + error.message);
+        return;
+      }
+      const resultado = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!resultado || !resultado.ok) {
+        showToast(resultado ? resultado.error : 'Erro ao deletar sala');
+        return;
+      }
+
+      // 2. Gerar slug do repositório a partir do nome
+      const slug = nomeSala
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 50);
+      const repoSlug = 'cliente-' + slug;
+
+      // 3. Deletar repo GitHub + site Netlify
+      try {
+        const res = await fetch('/.netlify/functions/deletar-projeto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repoSlug }),
+        });
+        const delData = await res.json();
+        if (delData.ok) {
+          showToast('Sala, repositório e site deletados!');
+        } else {
+          showToast('Sala deletada. Alguns recursos externos podem precisar de limpeza manual.');
+          console.warn('deletar-projeto:', delData);
+        }
+      } catch (e) {
+        showToast('Sala deletada do banco. Erro ao limpar GitHub/Netlify (veja console).');
+        console.error('deletar-projeto:', e);
+      }
+
       await carregarListaSalas();
     }
 
