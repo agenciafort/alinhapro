@@ -30,12 +30,10 @@
   <div class="sala-container">
     <!-- PREVIEW ou fallback documento -->
     <div class="sala-documento">
-      <!-- Toolbar: consultor vê «Alterar URL» mesmo sem preview_url -->
       <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" hidden>
         <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
         <div class="preview-toolbar__actions">
           <button type="button" class="btn btn--sm btn--secondary" id="btnRecarregarPreview" title="Recarregar preview">Recarregar</button>
-          <button type="button" class="btn btn--sm btn--secondary" id="btnEditarUrl" hidden title="Definir ou alterar URL do site do cliente">Alterar URL</button>
         </div>
       </div>
       <div class="preview-container" id="panelPreview" style="display:none;">
@@ -297,7 +295,6 @@
       const previewToolbarRow = document.getElementById('previewToolbarRow');
       const previewUrlLabel = document.getElementById('previewUrlLabel');
       const btnRecarregar = document.getElementById('btnRecarregarPreview');
-      const btnEditarUrl = document.getElementById('btnEditarUrl');
       let previewUrlAtual = '';
 
       sincronizarPreviewChrome = function () {
@@ -305,14 +302,12 @@
         if (hasUrl) {
           previewToolbarRow.hidden = false;
           previewUrlLabel.textContent = previewUrlAtual;
-          btnEditarUrl.hidden = !isAdmin;
           panelPreview.style.display = '';
           panelPreview.classList.add('preview-container--active');
           panelDocumento.style.display = 'none';
         } else if (isAdmin) {
           previewToolbarRow.hidden = false;
-          previewUrlLabel.textContent = 'Sem URL — clique em «Alterar URL» para colar o site do cliente';
-          btnEditarUrl.hidden = false;
+          previewUrlLabel.textContent = 'Sem URL de preview — defina ao criar a sala com projeto automático ou no painel (Recriar site).';
           panelPreview.style.display = 'none';
           panelPreview.classList.remove('preview-container--active');
           panelDocumento.style.display = '';
@@ -331,18 +326,9 @@
       }
 
       btnRecarregar.addEventListener('click', () => {
-        if (!previewUrlAtual) { showToast('Defina uma URL primeiro.'); return; }
+        if (!previewUrlAtual) { showToast('Nenhuma URL de preview nesta sala.'); return; }
         previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
         showToast('Preview recarregado');
-      });
-
-      btnEditarUrl.addEventListener('click', async () => {
-        const novaUrl = prompt('URL do projeto do cliente (ex: https://meusite.netlify.app):', previewUrlAtual);
-        if (novaUrl === null) return;
-        const urlLimpa = novaUrl.trim();
-        if (!urlLimpa) { showToast('URL vazia.'); return; }
-        const ok = await atualizarPreviewUrl(salaId, urlLimpa);
-        if (ok) { ativarPreview(urlLimpa); showToast('Preview ativado!'); }
       });
 
       salaAtual = await buscarSala(salaId);
