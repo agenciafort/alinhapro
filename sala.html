@@ -275,6 +275,7 @@
     }
 
     async function init() {
+      try {
       const salaId = getParam('id');
       salaIdGlobal = salaId;
       const modoConsultor = getParam('consultor') === '1';
@@ -440,6 +441,7 @@
         esconderUiAdmin();
         showToast('Modo consultor encerrado.');
       });
+      } catch(e) { console.error('INIT ERROR:', e); showToast('Erro ao carregar sala: ' + e.message); }
     }
 
     async function enviarMsg() {
