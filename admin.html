@@ -81,6 +81,11 @@
         <label>Link do consultor</label>
         <input type="text" id="linkAdmin" readonly onclick="this.select()">
       </div>
+      <div class="form-group" id="grupoLinkRepo" style="display:none;">
+        <label>Repositório GitHub</label>
+        <input type="text" id="linkRepo" readonly onclick="this.select()">
+        <p class="text-sm text-muted mt-1">Cole no Cursor para trabalhar no projeto.</p>
+      </div>
       <div class="modal__actions">
         <button class="btn btn--primary" onclick="fecharModalLink()">Entendi</button>
       </div>
@@ -170,6 +175,7 @@
       localStorage.setItem('alinhapro_nome', currentUser.nome);
 
       let previewUrl = previewManual;
+      let repoUrl = '';
 
       if (criarProjeto) {
         showToast('Criando repositório e site do cliente...');
@@ -186,6 +192,7 @@
             return;
           }
           previewUrl = data.siteUrl;
+          repoUrl = data.repoUrl || '';
           showToast('Projeto criado! Agora criando a sala...');
         } catch (e) {
           console.error('Erro na automação:', e);
@@ -212,6 +219,15 @@
 
         document.getElementById('linkCliente').value = linkCliente;
         document.getElementById('linkAdmin').value = linkAdmin;
+
+        const grupoRepo = document.getElementById('grupoLinkRepo');
+        if (repoUrl) {
+          document.getElementById('linkRepo').value = repoUrl;
+          grupoRepo.style.display = '';
+        } else {
+          grupoRepo.style.display = 'none';
+        }
+
         document.getElementById('modalLink').classList.add('modal-overlay--active');
 
         await carregarListaSalas();
