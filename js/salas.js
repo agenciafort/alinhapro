@@ -1,4 +1,5 @@
-const COLUNAS_SALA_SEGURAS = 'id,nome,documento,status,preview_url,repo_url,criada_em';
+const COLUNAS_SALA_BASE = 'id,nome,documento,status,preview_url,criada_em';
+const COLUNAS_SALA_EXTRA = 'id,nome,documento,status,preview_url,criada_em,modo,repo_url';
 
 function chaveTokenAdmin(salaId) {
   return 'alinhapro_admin_token_' + salaId;
@@ -59,27 +60,31 @@ async function criarSala(nome, senhaAdmin, previewUrl, userToken) {
 }
 
 async function listarSalas() {
-  const { data, error } = await sb
+  let { data, error } = await sb
     .from('salas')
-    .select(COLUNAS_SALA_SEGURAS)
+    .select(COLUNAS_SALA_EXTRA)
     .order('criada_em', { ascending: false });
 
   if (error) {
-    showToast('Erro ao listar salas: ' + error.message);
-    return [];
+    ({ data, error } = await sb.from('salas').select(COLUNAS_SALA_BASE).order('criada_em', { ascending: false }));
+    if (error) { showToast('Erro ao listar salas: ' + error.message); return []; }
   }
 
   return data || [];
 }
 
 async function buscarSala(id) {
-  const { data, error } = await sb
+  let { data, error } = await sb
     .from('salas')
-    .select(COLUNAS_SALA_SEGURAS)
+    .select(COLUNAS_SALA_EXTRA)
     .eq('id', id)
     .single();
 
-  if (error) return null;
+  if (error) {
+    ({ data, error } = await sb.from('salas').select(COLUNAS_SALA_BASE).eq('id', id).single());
+    if (error) return null;
+  }
+
   return data;
 }
 
