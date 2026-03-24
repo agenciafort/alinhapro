@@ -38,7 +38,7 @@
           <button type="button" class="btn btn--sm btn--secondary" id="btnEditarUrl" hidden title="Definir ou alterar URL do site do cliente">Alterar URL</button>
         </div>
       </div>
-      <div class="preview-container" id="panelPreview" style="display:none; position:relative;">
+      <div class="preview-container" id="panelPreview" style="display:none;">
         <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-forms allow-popups" loading="lazy"></iframe>
         <div class="preview-shield" id="previewShield"></div>
       </div>
@@ -766,7 +766,7 @@
       function atualizarShield() {
         if (isAdmin) {
           shield.style.display = 'none';
-          iframe.style.pointerEvents = '';
+          iframe.style.pointerEvents = 'auto';
         } else {
           shield.style.display = '';
           iframe.style.pointerEvents = 'none';
