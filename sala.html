@@ -11,7 +11,10 @@
 <body>
 
   <header class="header header--sala" role="banner">
-    <a href="index.html" class="header__logo" title="Ir para início">Alinha<span>Pro</span></a>
+    <a href="index.html" class="header__logo" title="Ir para início">
+      <img src="img/alinhapro-logo.svg" alt="" class="header__logo-img" width="40" height="40" decoding="async">
+      Alinha<span>Pro</span>
+    </a>
     <div class="header__sala-info">
       <span id="salaNome" class="header__sala-title">Carregando…</span>
       <span class="header__status" id="salaStatus" aria-live="polite">Ao vivo</span>
@@ -91,7 +94,6 @@
       <div class="chat-input">
         <input type="text" id="chatInput" name="mensagem_chat_alinhapro" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="true" data-lpignore="true" data-1p-ignore="true" data-form-type="other" placeholder="Digite sua mensagem..." readonly onkeydown="if(event.key==='Enter')enviarMsg()">
         <button onclick="enviarMsg()">Enviar</button>
-        <button class="btn-decisao" id="btnDecisao" hidden title="Registrar a última mensagem como decisão aprovada" onclick="registrarDecisao()">&#10003;</button>
       </div>
     </div>
     </div>
@@ -187,7 +189,6 @@
     let meuNome = localStorage.getItem('alinhapro_nome') || 'Visitante';
     let isAdmin = false;
     let salaIdGlobal = null;
-    let ultimaMensagemId = null;
     /** Preenchida em init — usada por mostrarUiAdmin / esconderUiAdmin */
     let sincronizarPreviewChrome = function () {};
 
@@ -196,7 +197,6 @@
       document.getElementById('navPainel').hidden = !temToken;
       document.getElementById('navSairConsultor').hidden = !temToken;
       document.getElementById('navSepConsultor').hidden = !temToken;
-      document.getElementById('btnDecisao').hidden = !temToken;
     }
 
     function fecharEditorSeAberto() {
@@ -222,6 +222,7 @@
       document.getElementById('btnEditar').style.display = '';
       atualizarNavSala();
       sincronizarPreviewChrome();
+      if (typeof refreshTicksChat === 'function') refreshTicksChat(meuNome, true);
     }
 
     function esconderUiAdmin() {
@@ -231,6 +232,7 @@
       document.getElementById('btnCancelar').style.display = 'none';
       atualizarNavSala();
       sincronizarPreviewChrome();
+      if (typeof refreshTicksChat === 'function') refreshTicksChat(meuNome, false);
     }
 
     function abrirModalSenha() {
@@ -251,34 +253,6 @@
       stripQueryParams(['admin', 'consultor']);
       mostrarUiAdmin();
       return true;
-    }
-
-    async function registrarDecisao() {
-      if (!ultimaMensagemId || !salaIdGlobal) {
-        showToast('Envie ou receba uma mensagem antes.');
-        return;
-      }
-      const container = document.getElementById('chatMessages');
-      const msgs = container.querySelectorAll('.msg');
-      const ultima = msgs[msgs.length - 1];
-      const textoEl = ultima ? ultima.querySelector('div:nth-child(2)') : null;
-      const texto = textoEl ? textoEl.textContent : '';
-      if (!texto) { showToast('Nenhuma mensagem para registrar.'); return; }
-
-      const { error } = await sb
-        .from('decisoes')
-        .insert({ sala_id: salaIdGlobal, mensagem_id: ultimaMensagemId, texto, autor: meuNome });
-
-      if (error) { showToast('Erro ao registrar decisão.'); return; }
-
-      if (ultima) {
-        ultima.classList.add('msg--decisao');
-        const badge = document.createElement('div');
-        badge.className = 'msg__decisao-badge';
-        badge.textContent = 'Decisão registrada';
-        ultima.appendChild(badge);
-      }
-      showToast('Decisão registrada!');
     }
 
     async function init() {
@@ -389,22 +363,40 @@
         }, 30000);
       }
 
-      // ===== CHAT =====
+      // ===== CHAT (mensagens + vistos) =====
+      await carregarLeituraChat(salaId);
+      const tokenChat = getAdminToken(salaId);
+      const isConsultorChat = !!tokenChat;
+
       const msgs = await carregarMensagens(salaId);
       const container = document.getElementById('chatMessages');
       if (msgs.length > 0) {
         container.innerHTML = '';
-        msgs.forEach(m => { container.appendChild(renderMensagem(m, meuNome)); ultimaMensagemId = m.id; });
+        msgs.forEach(m => { container.appendChild(renderMensagem(m, meuNome, isConsultorChat)); });
         scrollChatParaBaixo();
+        const ultima = msgs[msgs.length - 1];
+        if (ultima && ultima.id) agendarReportarLeitura(salaId, ultima.id, tokenChat);
       }
+
+      ouvirLeituraChat(salaId, () => {
+        refreshTicksChat(meuNome, !!getAdminToken(salaId));
+      });
 
       ouvirMensagens(salaId, (novaMensagem) => {
         const container = document.getElementById('chatMessages');
         const emptyState = container.querySelector('.empty-state');
         if (emptyState) emptyState.remove();
-        container.appendChild(renderMensagem(novaMensagem, meuNome));
-        ultimaMensagemId = novaMensagem.id;
+        container.appendChild(renderMensagem(novaMensagem, meuNome, !!getAdminToken(salaId)));
         scrollChatParaBaixo();
+        if (novaMensagem && novaMensagem.id) {
+          agendarReportarLeitura(salaId, novaMensagem.id, getAdminToken(salaId));
+        }
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || !salaIdGlobal) return;
+        const mid = ultimaMensagemIdNoChat();
+        if (mid) agendarReportarLeitura(salaIdGlobal, mid, getAdminToken(salaIdGlobal));
       });
 
       // ===== REALTIME: documento + preview_url =====
@@ -444,7 +436,10 @@
       const texto = input.value.trim();
       if (!texto) return;
       input.value = '';
-      await enviarMensagem(salaAtual.id, meuNome, texto);
+      const nova = await enviarMensagem(salaAtual.id, meuNome, texto);
+      if (nova && nova.id && salaAtual && salaAtual.id) {
+        agendarReportarLeitura(salaAtual.id, nova.id, getAdminToken(salaAtual.id));
+      }
     }
 
     const btnEditar = document.getElementById('btnEditar');
