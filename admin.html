@@ -47,9 +47,16 @@
         <input type="text" id="adminNome" placeholder="Seu nome">
       </div>
       <div class="form-group">
-        <label for="novaSalaPreview">URL de preview do projeto (opcional)</label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="novaSalaCriarProjeto" checked>
+          Criar projeto automaticamente (GitHub + Netlify)
+        </label>
+        <p class="text-sm text-muted mt-1">Cria repositório e site para o cliente ver o projeto ao vivo na sala.</p>
+      </div>
+      <div class="form-group" id="grupoPreviewManual" style="display:none;">
+        <label for="novaSalaPreview">URL de preview manual (opcional)</label>
         <input type="url" id="novaSalaPreview" placeholder="Ex: https://meu-projeto.netlify.app">
-        <p class="text-sm text-muted mt-1">Se preencher, o cliente verá o site do projeto ao vivo dentro da sala.</p>
+        <p class="text-sm text-muted mt-1">Só preencha se quiser usar um site que já existe.</p>
       </div>
       <div class="modal__actions">
         <button class="btn btn--secondary" onclick="fecharModalNovaSala()">Cancelar</button>
@@ -137,21 +144,51 @@
       document.getElementById('modalLink').classList.remove('modal-overlay--active');
     }
 
+    document.getElementById('novaSalaCriarProjeto').addEventListener('change', function () {
+      document.getElementById('grupoPreviewManual').style.display = this.checked ? 'none' : '';
+    });
+
     async function criarNovaSala() {
       const nome = document.getElementById('novaSalaNome').value.trim();
       const senha = document.getElementById('novaSalaSenha').value.trim();
       const adminNome = document.getElementById('adminNome').value.trim();
-      const previewUrl = document.getElementById('novaSalaPreview').value.trim();
+      const criarProjeto = document.getElementById('novaSalaCriarProjeto').checked;
+      const previewManual = document.getElementById('novaSalaPreview').value.trim();
 
       if (!nome || !senha || !adminNome) {
         showToast('Preencha todos os campos');
         return;
       }
 
-      showToast('Criando sala...');
-
       localStorage.setItem('alinhapro_admin_nome', adminNome);
       localStorage.setItem('alinhapro_nome', adminNome);
+
+      let previewUrl = previewManual;
+
+      if (criarProjeto) {
+        showToast('Criando repositório e site do cliente...');
+        try {
+          const res = await fetch('/.netlify/functions/criar-projeto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            showToast('Erro ao criar projeto: ' + (data.error || 'erro desconhecido'));
+            console.error('criar-projeto:', data);
+            return;
+          }
+          previewUrl = data.siteUrl;
+          showToast('Projeto criado! Agora criando a sala...');
+        } catch (e) {
+          console.error('Erro na automação:', e);
+          showToast('Erro na automação: ' + e.message);
+          return;
+        }
+      } else {
+        showToast('Criando sala...');
+      }
 
       try {
         const sala = await criarSala(nome, senha, previewUrl);
