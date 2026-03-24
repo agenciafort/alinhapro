@@ -117,6 +117,7 @@
               ? `<button class="btn btn--sm btn--secondary" onclick="concluirSala('${s.id}')">Concluir</button>`
               : `<button class="btn btn--sm btn--secondary" onclick="reativarSala('${s.id}')">Reativar</button>`
             }
+            <button type="button" class="btn btn--sm btn--secondary" title="Recria o site na Netlify a partir do repo GitHub e atualiza o preview desta sala" onclick="reconectarSiteNetlify('${s.id}')">Recriar site</button>
             <button class="btn btn--sm btn--danger" onclick="deletarSala('${s.id}', '${escapeHtmlAdmin(s.nome)}')">Deletar</button>
           </div>
         </div>
@@ -243,6 +244,66 @@
       if (!ok) return;
       showToast('Sala reativada');
       await carregarListaSalas();
+    }
+
+    function slugRepoClienteDeNome(nomeSala) {
+      const slug = (nomeSala || '')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 50);
+      return 'cliente-' + slug;
+    }
+
+    async function reconectarSiteNetlify(salaId) {
+      const salas = await listarSalas();
+      const sala = salas.find((x) => x.id === salaId);
+      if (!sala) {
+        showToast('Sala não encontrada.');
+        return;
+      }
+      const senha = prompt('Senha de administrador desta sala:');
+      if (!senha) return;
+
+      const sugerido = slugRepoClienteDeNome(sala.nome);
+      const repoSlugInput = prompt(
+        'Nome do repositório no GitHub (só o nome, sem dono).\nEx.: cliente-robson-gestao-de-processos\n\nDeixe vazio para usar o nome da sala:',
+        sugerido
+      );
+      if (repoSlugInput === null) return;
+      const repoSlug = (repoSlugInput.trim() || sugerido).trim();
+      if (!repoSlug.startsWith('cliente-')) {
+        showToast('O repositório deve começar com cliente-');
+        return;
+      }
+
+      showToast('Conectando Netlify ao repositório...');
+      try {
+        const res = await fetch('/.netlify/functions/reconectar-site', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repoSlug }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          showToast('Erro: ' + (data.error || res.statusText || 'falha ao recriar site'));
+          console.error('reconectar-site:', data);
+          return;
+        }
+        const siteUrl = data.siteUrl || '';
+        if (!siteUrl) {
+          showToast('Site criado mas URL não retornada. Veja o Netlify.');
+          return;
+        }
+        const okDb = await atualizarPreviewUrlComSenha(salaId, senha, siteUrl);
+        if (!okDb) return;
+        showToast(data.alreadyExisted ? 'Site encontrado, deploy disparado. Preview atualizado!' : 'Site criado e preview atualizado!');
+        await carregarListaSalas();
+      } catch (e) {
+        console.error(e);
+        showToast('Erro: ' + e.message);
+      }
     }
 
     async function deletarSala(salaId, nomeSala) {

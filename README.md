@@ -31,6 +31,12 @@ Portal de consultoria online com documento colaborativo ao vivo e chat em tempo 
 2. No Supabase, **SQL Editor** → cole **`migracao-seguranca.sql`** inteiro → **Run** (uma vez).
 3. Teste criar sala e editar documento.
 
+### Botão **Recriar site** (Netlify 404 / site apagado)
+
+1. No Supabase, **SQL Editor** → rode **`migracao-reconectar-preview.sql`** (uma vez).
+2. Faça **deploy** deste repo no Netlify (para publicar a função `reconectar-site`).
+3. No **admin**, na sala do cliente: **Recriar site** → senha da sala → confirme ou ajuste o nome do repo (`cliente-...`). Isso cria ou reaproveita o site na Netlify ligado ao GitHub e **atualiza o preview** da sala.
+
 ## Deploy (Netlify + Git)
 
 Conecte o repositório ao Netlify (**Continuous deployment**). Depois, cada `git push` na branch `master` publica o site.

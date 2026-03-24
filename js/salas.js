@@ -151,6 +151,24 @@ async function atualizarPreviewUrl(salaId, url) {
   return true;
 }
 
+/** Atualiza preview_url usando senha admin (útil no painel admin.html, sem sessão na sala). */
+async function atualizarPreviewUrlComSenha(salaId, senhaAdmin, url) {
+  const { data, error } = await sb.rpc('rpc_atualizar_preview_url_senha', {
+    p_sala_id: salaId,
+    p_senha: senhaAdmin,
+    p_url: url || ''
+  });
+  if (error) {
+    showToast('Erro ao salvar URL: ' + error.message);
+    return false;
+  }
+  if (data !== true) {
+    showToast('Senha incorreta ou sala inválida.');
+    return false;
+  }
+  return true;
+}
+
 function ouvirMudancasSala(salaId, callback) {
   return sb
     .channel(`doc-${salaId}`)
