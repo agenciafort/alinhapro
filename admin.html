@@ -176,7 +176,7 @@
         try {
           const res = await fetch('/.netlify/functions/criar-projeto', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
             body: JSON.stringify({ nome }),
           });
           const data = await res.json();
@@ -287,7 +287,7 @@
       try {
         const res = await fetch('/.netlify/functions/reconectar-site', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
           body: JSON.stringify({ repoSlug }),
         });
         const data = await res.json().catch(() => ({}));
@@ -339,7 +339,7 @@
       try {
         const res = await fetch('/.netlify/functions/deletar-projeto', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
           body: JSON.stringify({ repoSlug }),
         });
         const delData = await res.json();

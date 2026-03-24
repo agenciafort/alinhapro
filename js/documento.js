@@ -1,5 +1,7 @@
 function renderizarMarkdown(md) {
-  return marked.parse(md || '');
+  const html = marked.parse(md || '');
+  if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(html);
+  return html;
 }
 
 function iniciarEditor(salaId, isAdmin) {

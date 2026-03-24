@@ -11,20 +11,23 @@
  */
 
 const crypto = require('crypto');
+const { getCorsHeaders, validateAdminSession, extractToken } = require('./auth-helper');
 
 function sha1(buffer) {
   return crypto.createHash('sha1').update(buffer).digest('hex');
 }
 
 exports.handler = async (event) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-  };
+  const headers = getCorsHeaders(event);
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
+
+  const token = extractToken(event);
+  const user = await validateAdminSession(token);
+  if (!user) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Não autorizado. Faça login primeiro.' }) };
+  }
 
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;

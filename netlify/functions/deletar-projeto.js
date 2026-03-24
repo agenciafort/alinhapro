@@ -8,12 +8,10 @@
  * Segurança: só deleta repos que começam com "cliente-"
  */
 
+const { getCorsHeaders, validateAdminSession, extractToken } = require('./auth-helper');
+
 exports.handler = async (event) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-  };
+  const headers = getCorsHeaders(event);
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
@@ -21,6 +19,12 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
+  }
+
+  const token = extractToken(event);
+  const user = await validateAdminSession(token);
+  if (!user) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Não autorizado. Faça login primeiro.' }) };
   }
 
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
