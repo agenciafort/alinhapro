@@ -28,7 +28,7 @@
   <div class="sala-container">
     <!-- PREVIEW ou fallback documento -->
     <div class="sala-documento">
-      <div class="preview-container preview-container--active" id="panelPreview" hidden>
+      <div class="preview-container" id="panelPreview" style="display:none;">
         <div class="preview-toolbar">
           <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
           <div class="preview-toolbar__actions">
@@ -271,9 +271,9 @@
       }
 
       if (temPreview) {
-        panelPreview.hidden = false;
+        panelPreview.style.display = '';
         panelPreview.classList.add('preview-container--active');
-        panelDocumento.hidden = true;
+        panelDocumento.style.display = 'none';
         carregarPreview(previewUrlAtual);
         if (isAdmin) btnEditarUrl.style.display = '';
         btnRecarregar.addEventListener('click', () => {
@@ -291,8 +291,8 @@
             previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
         }, 30000);
       } else {
-        panelDocumento.hidden = false;
-        panelPreview.hidden = true;
+        panelDocumento.style.display = '';
+        panelPreview.style.display = 'none';
       }
 
       // ===== CHAT =====
