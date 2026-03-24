@@ -1,4 +1,4 @@
-const COLUNAS_SALA_SEGURAS = 'id,nome,documento,status,preview_url,criada_em';
+const COLUNAS_SALA_SEGURAS = 'id,nome,documento,status,preview_url,repo_url,criada_em';
 
 function chaveTokenAdmin(salaId) {
   return 'alinhapro_admin_token_' + salaId;

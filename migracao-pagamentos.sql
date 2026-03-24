@@ -59,6 +59,9 @@ CREATE INDEX IF NOT EXISTS idx_disputas_sala ON public.disputas(sala_id);
 -- Adicionar modo da sala (gratuito ou pago)
 ALTER TABLE public.salas ADD COLUMN IF NOT EXISTS modo TEXT DEFAULT 'gratuito' CHECK (modo IN ('gratuito', 'pago'));
 
+-- URL do repositório GitHub (para acesso rápido no painel)
+ALTER TABLE public.salas ADD COLUMN IF NOT EXISTS repo_url TEXT DEFAULT '';
+
 -- RLS
 ALTER TABLE public.propostas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagamentos ENABLE ROW LEVEL SECURITY;

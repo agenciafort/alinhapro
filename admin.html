@@ -129,6 +129,7 @@
           <div class="sala-card__actions">
             <button class="btn btn--primary btn--sm" onclick="entrarComoAdmin('${s.id}')">Entrar</button>
             <button class="btn btn--secondary btn--sm" onclick="copiarLinkCliente('${s.id}')">Link cliente</button>
+            ${s.repo_url ? `<a href="${escapeHtmlAdmin(s.repo_url)}" target="_blank" class="btn btn--sm btn--secondary" title="Abrir repositório no GitHub">GitHub</a>` : ''}
             ${s.status === 'ativa'
               ? `<button class="btn btn--sm btn--secondary" onclick="concluirSala('${s.id}')">Concluir</button>`
               : `<button class="btn btn--sm btn--secondary" onclick="reativarSala('${s.id}')">Reativar</button>`
@@ -210,6 +211,10 @@
         if (!sala) {
           showToast('Erro: sala não foi criada. Verifique o console (F12).');
           return;
+        }
+
+        if (repoUrl && sala.id) {
+          await sb.from('salas').update({ repo_url: repoUrl }).eq('id', sala.id);
         }
 
         fecharModalNovaSala();
