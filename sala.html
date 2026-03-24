@@ -28,14 +28,15 @@
   <div class="sala-container">
     <!-- PREVIEW ou fallback documento -->
     <div class="sala-documento">
-      <div class="preview-container" id="panelPreview" style="display:none;">
-        <div class="preview-toolbar">
-          <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
-          <div class="preview-toolbar__actions">
-            <button class="btn btn--sm btn--secondary" id="btnRecarregarPreview" title="Recarregar preview">Recarregar</button>
-            <button class="btn btn--sm btn--secondary" id="btnEditarUrl" style="display:none;" title="Alterar URL de preview">Alterar URL</button>
-          </div>
+      <!-- Toolbar fora do iframe: consultor vê «Alterar URL» mesmo sem preview_url -->
+      <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" style="display:none;" role="region" aria-label="Preview do projeto">
+        <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
+        <div class="preview-toolbar__actions">
+          <button type="button" class="btn btn--sm btn--secondary" id="btnRecarregarPreview" title="Recarregar preview">Recarregar</button>
+          <button type="button" class="btn btn--sm btn--secondary" id="btnEditarUrl" style="display:none;" title="Definir ou alterar URL do site do cliente">Alterar URL</button>
         </div>
+      </div>
+      <div class="preview-container" id="panelPreview" style="display:none;">
         <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"></iframe>
       </div>
 
@@ -115,6 +116,8 @@
     let isAdmin = false;
     let salaIdGlobal = null;
     let ultimaMensagemId = null;
+    /** Preenchida em init — usada por mostrarUiAdmin / esconderUiAdmin */
+    let sincronizarPreviewChrome = function () {};
 
     function atualizarNavSala() {
       const temToken = salaIdGlobal && !!getAdminToken(salaIdGlobal);
@@ -144,8 +147,8 @@
       meuNome = localStorage.getItem('alinhapro_admin_nome') || 'Consultor';
       localStorage.setItem('alinhapro_nome', meuNome);
       document.getElementById('btnEditar').style.display = '';
-      document.getElementById('btnEditarUrl').style.display = '';
       atualizarNavSala();
+      sincronizarPreviewChrome();
     }
 
     function esconderUiAdmin() {
@@ -153,8 +156,8 @@
       document.getElementById('btnEditar').style.display = 'none';
       document.getElementById('btnSalvar').style.display = 'none';
       document.getElementById('btnCancelar').style.display = 'none';
-      document.getElementById('btnEditarUrl').style.display = 'none';
       atualizarNavSala();
+      sincronizarPreviewChrome();
     }
 
     function abrirModalSenha() {
@@ -220,6 +223,63 @@
         esconderUiAdmin();
       });
 
+      // Preview: refs + sync antes do await para mostrarUiAdmin funcionar após buscarSala
+      const panelPreview = document.getElementById('panelPreview');
+      const panelDocumento = document.getElementById('panelDocumento');
+      const previewIframe = document.getElementById('previewIframe');
+      const previewToolbarRow = document.getElementById('previewToolbarRow');
+      const previewUrlLabel = document.getElementById('previewUrlLabel');
+      const btnRecarregar = document.getElementById('btnRecarregarPreview');
+      const btnEditarUrl = document.getElementById('btnEditarUrl');
+      let previewUrlAtual = '';
+
+      sincronizarPreviewChrome = function () {
+        const hasUrl = !!previewUrlAtual;
+        if (hasUrl) {
+          previewToolbarRow.style.display = 'flex';
+          previewUrlLabel.textContent = previewUrlAtual;
+          btnEditarUrl.style.display = isAdmin ? '' : 'none';
+          btnRecarregar.style.display = '';
+          panelPreview.style.display = '';
+          panelPreview.classList.add('preview-container--active');
+          panelDocumento.style.display = 'none';
+        } else if (isAdmin) {
+          previewToolbarRow.style.display = 'flex';
+          previewUrlLabel.textContent = 'Sem URL — clique em «Alterar URL» e cole o site do cliente (Netlify/Vercel).';
+          btnEditarUrl.style.display = '';
+          btnRecarregar.style.display = '';
+          panelPreview.style.display = 'none';
+          panelPreview.classList.remove('preview-container--active');
+          panelDocumento.style.display = '';
+        } else {
+          previewToolbarRow.style.display = 'none';
+          panelDocumento.style.display = '';
+          panelPreview.style.display = 'none';
+          panelPreview.classList.remove('preview-container--active');
+        }
+      };
+
+      function ativarPreview(url) {
+        previewUrlAtual = (url || '').trim();
+        if (previewUrlAtual) previewIframe.src = previewUrlAtual;
+        sincronizarPreviewChrome();
+      }
+
+      btnRecarregar.addEventListener('click', () => {
+        if (!previewUrlAtual) { showToast('Defina uma URL primeiro.'); return; }
+        previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        showToast('Preview recarregado');
+      });
+
+      btnEditarUrl.addEventListener('click', async () => {
+        const novaUrl = prompt('URL do projeto do cliente (ex: https://meusite.netlify.app):', previewUrlAtual);
+        if (novaUrl === null) return;
+        const urlLimpa = novaUrl.trim();
+        if (!urlLimpa) { showToast('URL vazia.'); return; }
+        const ok = await atualizarPreviewUrl(salaId, urlLimpa);
+        if (ok) { ativarPreview(urlLimpa); showToast('Preview ativado!'); }
+      });
+
       salaAtual = await buscarSala(salaId);
       if (!salaAtual) {
         showToast('Sala não encontrada');
@@ -227,8 +287,12 @@
         return;
       }
 
+      previewUrlAtual = (salaAtual.preview_url || '').trim();
+
       isAdmin = !!getAdminToken(salaId);
+      if (previewUrlAtual) ativarPreview(previewUrlAtual);
       if (isAdmin) mostrarUiAdmin();
+      if (!previewUrlAtual && !isAdmin) sincronizarPreviewChrome();
 
       if (adminLegacy) {
         const ok = await tentarLoginConsultor(adminLegacy);
@@ -255,56 +319,11 @@
       document.getElementById('docContent').innerHTML = renderizarMarkdown(salaAtual.documento);
       iniciarEditor(salaId, isAdmin);
 
-      // ===== PREVIEW =====
-      const panelPreview = document.getElementById('panelPreview');
-      const panelDocumento = document.getElementById('panelDocumento');
-      const previewIframe = document.getElementById('previewIframe');
-      const previewUrlLabel = document.getElementById('previewUrlLabel');
-      const btnRecarregar = document.getElementById('btnRecarregarPreview');
-      const btnEditarUrl = document.getElementById('btnEditarUrl');
-      let previewUrlAtual = (salaAtual.preview_url || '').trim();
-
-      function ativarPreview(url) {
-        previewUrlAtual = url;
-        previewUrlLabel.textContent = url;
-        previewIframe.src = url;
-        panelPreview.style.display = '';
-        panelPreview.classList.add('preview-container--active');
-        panelDocumento.style.display = 'none';
-      }
-
-      function mostrarDocumento() {
-        panelDocumento.style.display = '';
-        panelPreview.style.display = 'none';
-        panelPreview.classList.remove('preview-container--active');
-        previewUrlLabel.textContent = 'Sem URL definida';
-      }
-
-      if (isAdmin) btnEditarUrl.style.display = '';
-
-      btnRecarregar.addEventListener('click', () => {
-        if (!previewUrlAtual) { showToast('Defina uma URL primeiro.'); return; }
-        previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
-        showToast('Preview recarregado');
-      });
-
-      btnEditarUrl.addEventListener('click', async () => {
-        const novaUrl = prompt('URL do projeto do cliente (ex: https://meusite.netlify.app):', previewUrlAtual);
-        if (novaUrl === null) return;
-        const urlLimpa = novaUrl.trim();
-        if (!urlLimpa) { showToast('URL vazia.'); return; }
-        const ok = await atualizarPreviewUrl(salaId, urlLimpa);
-        if (ok) { ativarPreview(urlLimpa); showToast('Preview ativado!'); }
-      });
-
       if (previewUrlAtual) {
-        ativarPreview(previewUrlAtual);
         setInterval(() => {
-          if (!document.hidden && panelPreview.classList.contains('preview-container--active'))
+          if (!document.hidden && panelPreview.classList.contains('preview-container--active') && previewUrlAtual)
             previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
         }, 30000);
-      } else {
-        mostrarDocumento();
       }
 
       // ===== CHAT =====
@@ -341,7 +360,6 @@
         fecharEditorSeAberto();
         limparSessaoConsultor(salaIdGlobal);
         esconderUiAdmin();
-        btnEditarUrl.style.display = 'none';
         showToast('Modo consultor encerrado.');
       });
     }
