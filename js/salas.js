@@ -74,7 +74,6 @@ async function listarSalas() {
 }
 
 async function buscarSala(id) {
-  console.log('buscarSala: tentando EXTRA', COLUNAS_SALA_EXTRA);
   let { data, error } = await sb
     .from('salas')
     .select(COLUNAS_SALA_EXTRA)
@@ -82,12 +81,10 @@ async function buscarSala(id) {
     .single();
 
   if (error) {
-    console.warn('buscarSala: EXTRA falhou, tentando BASE', error.message);
     ({ data, error } = await sb.from('salas').select(COLUNAS_SALA_BASE).eq('id', id).single());
-    if (error) { console.error('buscarSala: BASE falhou', error.message); return null; }
+    if (error) return null;
   }
 
-  console.log('buscarSala: sucesso', data);
   return data;
 }
 
