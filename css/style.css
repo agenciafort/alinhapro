@@ -1084,6 +1084,349 @@ body {
   cursor: pointer;
 }
 
+/* ====== FASE BADGE (sala header) ====== */
+.fase-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #fef3c7;
+  color: #b45309;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.fase-badge:hover {
+  background: #fde68a;
+}
+
+/* ====== PÁGINA DE FASES ====== */
+.fases-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+/* STEPPER */
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 2.5rem;
+  padding: 0 1rem;
+}
+
+.stepper__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.stepper__circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: 2px solid var(--gray-300);
+  background: white;
+  color: var(--gray-400);
+  transition: all 0.3s;
+}
+
+.stepper__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gray-400);
+  text-align: center;
+  max-width: 90px;
+  line-height: 1.3;
+  transition: color 0.3s;
+}
+
+.stepper__line {
+  flex: 1;
+  height: 3px;
+  background: var(--gray-200);
+  min-width: 30px;
+  max-width: 80px;
+  margin: 0 0.25rem;
+  margin-bottom: 2rem;
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+
+.stepper__line--done {
+  background: var(--success);
+}
+
+.stepper__item--done .stepper__circle {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+
+.stepper__item--done .stepper__label {
+  color: var(--success);
+}
+
+.stepper__item--active .stepper__circle {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+.stepper__item--active .stepper__label {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.stepper__item--pending .stepper__circle {
+  border-color: var(--gray-200);
+  color: var(--gray-300);
+}
+
+/* FASE CARD */
+.fase-card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--shadow);
+}
+
+.fase-card__header {
+  margin-bottom: 1rem;
+}
+
+.fase-card__num {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+
+.fase-card__titulo {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.fase-card__desc {
+  color: var(--gray-600);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.fase-card__escopo {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.fase-card__escopo h4 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--gray-700);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fase-card__escopo-content {
+  font-size: 0.9rem;
+  color: var(--gray-700);
+  line-height: 1.7;
+}
+
+.fase-card__escopo-content h1,
+.fase-card__escopo-content h2,
+.fase-card__escopo-content h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.fase-card__aprovado {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.fase-card__aprovado-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--success);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.fase-card__aprovado strong {
+  color: var(--gray-800);
+  font-size: 0.9rem;
+}
+
+.fase-card__aprovado small {
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+
+.fase-card__acao {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.fase-card__acao-texto {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  margin-bottom: 1rem;
+}
+
+.fase-card__info-consultor {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.fase-card__info-consultor p {
+  font-size: 0.85rem;
+  color: #92400e;
+  font-weight: 500;
+}
+
+.fase-card__entrega {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.fase-card__entrega h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--success);
+  margin-bottom: 0.5rem;
+}
+
+.fase-card__entrega p {
+  color: var(--gray-600);
+  margin-bottom: 1rem;
+}
+
+/* HISTÓRICO DE APROVAÇÕES */
+.fase-historico {
+  margin-top: 2rem;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.fase-historico h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gray-700);
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.aprovacao-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.aprovacao-item:last-child {
+  border-bottom: none;
+}
+
+.aprovacao-item__icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.aprovacao-item strong {
+  font-size: 0.85rem;
+  color: var(--gray-800);
+}
+
+.aprovacao-item small {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+/* Responsivo stepper */
+@media (max-width: 600px) {
+  .stepper {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .stepper__line {
+    display: none;
+  }
+  .stepper__item {
+    flex: 0 0 auto;
+  }
+  .stepper__label {
+    font-size: 0.6rem;
+    max-width: 60px;
+  }
+  .stepper__circle {
+    width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
+  }
+  .fase-card { padding: 1.25rem; }
+  .fases-page { padding: 1rem; }
+}
+
 /* ====== UTILITIES ====== */
 .mt-1 { margin-top: 0.5rem; }
 .mt-2 { margin-top: 1rem; }

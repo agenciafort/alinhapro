@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Fases do Projeto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="header__logo">Alinha<span>Pro</span></a>
+    <div class="header__sala-info">
+      <span id="salaNome" class="header__sala-title">Carregando…</span>
+    </div>
+    <nav class="header__nav">
+      <a href="#" id="navVoltarSala" class="header__nav-link header__nav-link--cta">Voltar à sala</a>
+    </nav>
+  </header>
+
+  <div class="fases-page">
+    <!-- STEPPER -->
+    <div class="stepper" id="stepper">
+      <div class="stepper__item" data-fase="1">
+        <div class="stepper__circle">1</div>
+        <div class="stepper__label">Definição de Escopo</div>
+      </div>
+      <div class="stepper__line" data-after="1"></div>
+      <div class="stepper__item" data-fase="2">
+        <div class="stepper__circle">2</div>
+        <div class="stepper__label">Aprovação do Escopo</div>
+      </div>
+      <div class="stepper__line" data-after="2"></div>
+      <div class="stepper__item" data-fase="3">
+        <div class="stepper__circle">3</div>
+        <div class="stepper__label">Desenvolvimento</div>
+      </div>
+      <div class="stepper__line" data-after="3"></div>
+      <div class="stepper__item" data-fase="4">
+        <div class="stepper__circle">4</div>
+        <div class="stepper__label">Revisão e Ajustes</div>
+      </div>
+      <div class="stepper__line" data-after="4"></div>
+      <div class="stepper__item" data-fase="5">
+        <div class="stepper__circle">5</div>
+        <div class="stepper__label">Entrega Final</div>
+      </div>
+    </div>
+
+    <!-- CONTEÚDO DA FASE ATUAL -->
+    <div class="fase-content" id="faseContent">
+      <div class="empty-state">
+        <div class="empty-state__icon">&#9881;</div>
+        <p>Carregando fases do projeto...</p>
+      </div>
+    </div>
+
+    <!-- HISTÓRICO DE APROVAÇÕES -->
+    <div class="fase-historico" id="faseHistorico" style="display:none;">
+      <h3>Histórico de Aprovações</h3>
+      <div id="listaAprovacoes"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/salas.js"></script>
+  <script>
+    const FASES = [
+      { num: 1, titulo: 'Definição de Escopo', desc: 'Nesta fase, consultor e cliente discutem e definem exatamente o que será feito no projeto. Use o chat da sala para alinhar os detalhes.', acaoCliente: false, acaoConsultor: 'Defina o escopo e avance quando estiver pronto.' },
+      { num: 2, titulo: 'Aprovação do Escopo', desc: 'O cliente analisa o escopo definido e confirma que está de acordo. Após a aprovação, mudanças no escopo não serão mais aceitas sem renegociação.', acaoCliente: true, acaoConsultor: 'Aguarde o cliente aprovar o escopo.' },
+      { num: 3, titulo: 'Desenvolvimento', desc: 'O consultor desenvolve as funcionalidades acordadas. O cliente acompanha pelo preview ao vivo na sala.', acaoCliente: false, acaoConsultor: 'Desenvolva e avance quando concluir.' },
+      { num: 4, titulo: 'Revisão e Ajustes', desc: 'O cliente revisa o projeto e solicita ajustes finais. Após aprovação, o projeto segue para entrega.', acaoCliente: true, acaoConsultor: 'Aguarde o cliente aprovar a revisão.' },
+      { num: 5, titulo: 'Entrega Final', desc: 'Projeto concluído. O cliente confirma o recebimento e aceita a entrega final.', acaoCliente: true, acaoConsultor: 'Aguarde o cliente confirmar a entrega.' }
+    ];
+
+    let salaId = null;
+    let isAdmin = false;
+    let fasesData = null;
+    let meuNome = localStorage.getItem('alinhapro_nome') || 'Cliente';
+
+    function atualizarStepper(faseAtual, dados) {
+      document.querySelectorAll('.stepper__item').forEach(el => {
+        const f = parseInt(el.dataset.fase);
+        const circle = el.querySelector('.stepper__circle');
+        el.classList.remove('stepper__item--done', 'stepper__item--active', 'stepper__item--pending');
+        if (f < faseAtual) {
+          el.classList.add('stepper__item--done');
+          circle.innerHTML = '&#10003;';
+        } else if (f === faseAtual) {
+          el.classList.add('stepper__item--active');
+          circle.textContent = f;
+        } else {
+          el.classList.add('stepper__item--pending');
+          circle.textContent = f;
+        }
+      });
+      document.querySelectorAll('.stepper__line').forEach(el => {
+        const after = parseInt(el.dataset.after);
+        el.classList.toggle('stepper__line--done', after < faseAtual);
+      });
+    }
+
+    function renderFaseContent(faseAtual, dados) {
+      const fase = FASES.find(f => f.num === faseAtual);
+      if (!fase) return;
+
+      const aprovadaKey = `fase${faseAtual}_aprovada_em`;
+      const aprovadaPorKey = `fase${faseAtual}_aprovada_por`;
+      const jaAprovada = !!dados[aprovadaKey];
+
+      let html = `
+        <div class="fase-card">
+          <div class="fase-card__header">
+            <span class="fase-card__num">Fase ${fase.num}</span>
+            <h2 class="fase-card__titulo">${fase.titulo}</h2>
+          </div>
+          <p class="fase-card__desc">${fase.desc}</p>
+      `;
+
+      if (faseAtual === 2 && dados.escopo_texto) {
+        html += `
+          <div class="fase-card__escopo">
+            <h4>Escopo Definido:</h4>
+            <div class="fase-card__escopo-content">${marked.parse(dados.escopo_texto)}</div>
+          </div>
+        `;
+      }
+
+      if (jaAprovada) {
+        html += `
+          <div class="fase-card__aprovado">
+            <span class="fase-card__aprovado-icon">&#10003;</span>
+            <div>
+              <strong>Aprovado por ${dados[aprovadaPorKey]}</strong>
+              <br><small>${formatDate(dados[aprovadaKey])} às ${formatTime(dados[aprovadaKey])}</small>
+            </div>
+          </div>
+        `;
+      }
+
+      if (fase.acaoCliente && !jaAprovada && !isAdmin) {
+        html += `
+          <div class="fase-card__acao">
+            <p class="fase-card__acao-texto">Ao aprovar, você confirma que está de acordo com esta fase.</p>
+            <button class="btn btn--primary" onclick="aprovarFase(${faseAtual})">Aprovar e Assinar</button>
+          </div>
+        `;
+      }
+
+      if (isAdmin && !jaAprovada) {
+        if (fase.acaoCliente) {
+          html += `<div class="fase-card__info-consultor"><p>${fase.acaoConsultor}</p></div>`;
+        }
+        if (faseAtual === 1) {
+          html += `
+            <div class="fase-card__acao">
+              <div class="form-group">
+                <label>Resumo do escopo (Markdown)</label>
+                <textarea id="escopoTexto" rows="6" placeholder="Descreva o escopo do projeto...">${dados.escopo_texto || ''}</textarea>
+              </div>
+              <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn--secondary" onclick="salvarEscopo()">Salvar escopo</button>
+                <button class="btn btn--primary" onclick="avancarFase()">Avançar para aprovação</button>
+              </div>
+            </div>
+          `;
+        } else if (!fase.acaoCliente) {
+          html += `
+            <div class="fase-card__acao">
+              <button class="btn btn--primary" onclick="avancarFase()">Concluir fase e avançar</button>
+            </div>
+          `;
+        }
+      }
+
+      if (faseAtual === 5 && jaAprovada) {
+        html += `
+          <div class="fase-card__entrega">
+            <h3>Projeto Entregue</h3>
+            <p>Este projeto foi concluído e aceito pelo cliente. Todas as fases foram aprovadas.</p>
+            <button class="btn btn--secondary" onclick="window.print()">Imprimir Relatório</button>
+          </div>
+        `;
+      }
+
+      html += '</div>';
+
+      document.getElementById('faseContent').innerHTML = html;
+    }
+
+    function renderHistorico(dados) {
+      const container = document.getElementById('listaAprovacoes');
+      const historico = document.getElementById('faseHistorico');
+      let html = '';
+      let temAprovacao = false;
+
+      for (let i = 1; i <= 5; i++) {
+        const em = dados[`fase${i}_aprovada_em`];
+        const por = dados[`fase${i}_aprovada_por`];
+        if (em) {
+          temAprovacao = true;
+          html += `
+            <div class="aprovacao-item">
+              <div class="aprovacao-item__icon">&#10003;</div>
+              <div>
+                <strong>Fase ${i}: ${FASES[i-1].titulo}</strong>
+                <br><small>Aprovado por <strong>${por}</strong> em ${formatDate(em)} às ${formatTime(em)}</small>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      if (temAprovacao) {
+        historico.style.display = '';
+        container.innerHTML = html;
+      }
+    }
+
+    async function carregarFases() {
+      const { data, error } = await sb.from('fases_projeto').select('*').eq('sala_id', salaId).maybeSingle();
+      if (error) { showToast('Erro ao carregar fases'); return; }
+
+      if (!data) {
+        fasesData = { sala_id: salaId, fase_atual: 1, escopo_texto: '' };
+        if (isAdmin) {
+          await sb.from('fases_projeto').insert({ sala_id: salaId, fase_atual: 1 });
+        }
+      } else {
+        fasesData = data;
+      }
+
+      atualizarStepper(fasesData.fase_atual, fasesData);
+      renderFaseContent(fasesData.fase_atual, fasesData);
+      renderHistorico(fasesData);
+    }
+
+    async function aprovarFase(fase) {
+      const nomeInput = prompt('Digite seu nome para assinar a aprovação:');
+      if (!nomeInput || !nomeInput.trim()) { showToast('Nome é obrigatório para aprovar.'); return; }
+
+      const { data, error } = await sb.rpc('rpc_aprovar_fase', { p_sala_id: salaId, p_fase: fase, p_nome: nomeInput.trim() });
+      if (error) { showToast('Erro: ' + error.message); return; }
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!res || !res.ok) { showToast(res ? res.error : 'Erro ao aprovar'); return; }
+
+      showToast('Fase aprovada! Obrigado pela confirmação.');
+      await carregarFases();
+    }
+
+    async function avancarFase() {
+      const token = getAdminToken(salaId);
+      if (!token) { showToast('Sessão expirada.'); return; }
+
+      const { data, error } = await sb.rpc('rpc_avancar_fase', { p_sala_id: salaId, p_token: token });
+      if (error) { showToast('Erro: ' + error.message); return; }
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!res || !res.ok) { showToast(res ? res.error : 'Erro ao avançar'); return; }
+
+      showToast('Fase avançada!');
+      await carregarFases();
+    }
+
+    async function salvarEscopo() {
+      const token = getAdminToken(salaId);
+      const texto = document.getElementById('escopoTexto').value;
+      const { data, error } = await sb.rpc('rpc_salvar_escopo', { p_sala_id: salaId, p_token: token, p_texto: texto });
+      if (error) { showToast('Erro: ' + error.message); return; }
+      if (data !== true) { showToast('Sessão inválida.'); return; }
+      showToast('Escopo salvo!');
+    }
+
+    async function init() {
+      salaId = getParam('id');
+      if (!salaId) { window.location.href = 'index.html'; return; }
+
+      document.getElementById('navVoltarSala').href = `sala.html?id=${salaId}`;
+
+      const sala = await buscarSala(salaId);
+      if (!sala) { showToast('Sala não encontrada'); return; }
+
+      document.getElementById('salaNome').textContent = sala.nome;
+      document.title = `AlinhaPro — Fases: ${sala.nome}`;
+
+      isAdmin = !!getAdminToken(salaId);
+
+      await carregarFases();
+
+      sb.channel(`fases-${salaId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'fases_projeto', filter: `sala_id=eq.${salaId}` },
+          () => { carregarFases(); }
+        )
+        .subscribe();
+    }
+
+    init();
+  </script>
+
+</body>
+</html>

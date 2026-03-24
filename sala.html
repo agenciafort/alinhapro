@@ -15,8 +15,10 @@
     <div class="header__sala-info">
       <span id="salaNome" class="header__sala-title">Carregando…</span>
       <span class="header__status" id="salaStatus" aria-live="polite">Ao vivo</span>
+      <a href="#" id="faseBadge" class="fase-badge" title="Ver fases do projeto">Fase 1</a>
     </div>
     <nav class="header__nav" id="navSala" aria-label="Ações da sala">
+      <a href="#" class="header__nav-link header__nav-link--muted" id="navFases" title="Ver fases e aprovações do projeto">Fases</a>
       <a href="#" class="header__nav-link header__nav-link--muted" id="navResumo" title="Ver resumo, decisões e histórico da sessão">Resumo</a>
       <a href="admin.html" class="header__nav-link header__nav-link--muted" id="navPainel" hidden title="Gerenciar salas e criar novas">Painel</a>
       <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--muted" id="navSairConsultor" hidden title="Remove a sessão de edição neste navegador">Sair do modo consultor</button>
@@ -217,6 +219,7 @@
       if (!salaId) { window.location.href = 'index.html'; return; }
 
       document.getElementById('navResumo').href = `resumo.html?id=${salaId}`;
+      document.getElementById('navFases').href = `fases.html?id=${salaId}`;
 
       document.addEventListener('alinhapro-admin-invalido', () => {
         fecharEditorSeAberto();
@@ -360,6 +363,15 @@
       atualizarNavSala();
       // Garantia final: sync de preview após tudo estar montado
       sincronizarPreviewChrome();
+
+      // Fase badge
+      document.getElementById('faseBadge').href = `fases.html?id=${salaId}`;
+      const { data: fasesRow } = await sb.from('fases_projeto').select('fase_atual').eq('sala_id', salaId).maybeSingle();
+      if (fasesRow) document.getElementById('faseBadge').textContent = 'Fase ' + fasesRow.fase_atual;
+      sb.channel(`fase-badge-${salaId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'fases_projeto', filter: `sala_id=eq.${salaId}` },
+          (payload) => { if (payload.new && payload.new.fase_atual) document.getElementById('faseBadge').textContent = 'Fase ' + payload.new.fase_atual; }
+        ).subscribe();
 
       document.getElementById('navSairConsultor').addEventListener('click', () => {
         if (!salaIdGlobal) return;
