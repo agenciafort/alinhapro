@@ -38,8 +38,9 @@
           <button type="button" class="btn btn--sm btn--secondary" id="btnEditarUrl" hidden title="Definir ou alterar URL do site do cliente">Alterar URL</button>
         </div>
       </div>
-      <div class="preview-container" id="panelPreview" style="display:none;">
-        <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"></iframe>
+      <div class="preview-container" id="panelPreview" style="display:none; position:relative;">
+        <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-forms allow-popups" loading="lazy"></iframe>
+        <div class="preview-shield" id="previewShield"></div>
       </div>
 
       <!-- Fallback: documento Markdown (quando não tem preview_url) -->
@@ -400,6 +401,39 @@
     btnSalvar.addEventListener('click', () => { btnEditar.style.display = ''; btnSalvar.style.display = 'none'; btnCancelar.style.display = 'none'; });
 
     init();
+
+    // Proteções anti-cópia para clientes (não-admins)
+    (function antiCopy() {
+      document.addEventListener('contextmenu', (e) => {
+        if (!isAdmin) e.preventDefault();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (isAdmin) return;
+        // Bloqueia F12, Ctrl+Shift+I/J/C, Ctrl+U
+        if (e.key === 'F12') { e.preventDefault(); return; }
+        if (e.ctrlKey && e.shiftKey && ['I','i','J','j','C','c'].includes(e.key)) { e.preventDefault(); return; }
+        if (e.ctrlKey && ['U','u','S','s'].includes(e.key)) { e.preventDefault(); return; }
+      });
+
+      // Shield: permite interação no preview só para o consultor
+      const shield = document.getElementById('previewShield');
+      const iframe = document.getElementById('previewIframe');
+      function atualizarShield() {
+        if (isAdmin) {
+          shield.style.display = 'none';
+          iframe.style.pointerEvents = '';
+        } else {
+          shield.style.display = '';
+          iframe.style.pointerEvents = 'none';
+        }
+      }
+      const origMostrar = mostrarUiAdmin;
+      mostrarUiAdmin = function() { origMostrar(); atualizarShield(); };
+      const origEsconder = esconderUiAdmin;
+      esconderUiAdmin = function() { origEsconder(); atualizarShield(); };
+      atualizarShield();
+    })();
   </script>
 
 </body>

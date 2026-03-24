@@ -55,7 +55,7 @@ exports.handler = async (event) => {
         owner: GITHUB_OWNER,
         name: repoName,
         description: `Projeto do cliente: ${nomeCliente} — AlinhaPro`,
-        private: false,
+        private: true,
         include_all_branches: false,
       }),
     });
