@@ -224,22 +224,24 @@
 
       try {
         const userToken = getAuthToken();
-        const sala = await criarSala(nome, senha, previewUrl, userToken);
+        const sala = await criarSala(nome, senha, previewUrl, userToken, repoUrl || '');
         if (!sala) {
           showToast('Erro: sala não foi criada. Verifique o console (F12).');
           return;
         }
 
-        if (repoUrl && sala.id && userToken) {
+        if (repoUrl && userToken && (!sala.repo_url || String(sala.repo_url).trim() === '')) {
           const { data: repoRpc, error: repoErr } = await sb.rpc('rpc_definir_repo_url', {
             p_token: userToken,
             p_sala_id: sala.id,
             p_repo_url: repoUrl
           });
-          if (repoErr) console.error('rpc_definir_repo_url:', repoErr);
-          else {
+          if (repoErr) {
+            console.error('rpc_definir_repo_url:', repoErr);
+            showToast('Link GitHub não foi salvo: rode o SQL migracao-listar-salas-repo-url.sql no Supabase.');
+          } else {
             const rr = typeof repoRpc === 'string' ? JSON.parse(repoRpc) : repoRpc;
-            if (rr && !rr.ok) console.warn('repo_url:', rr.error);
+            if (rr && !rr.ok) showToast('Não foi possível salvar o repositório: ' + (rr.error || 'erro'));
           }
         }
 

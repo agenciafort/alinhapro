@@ -32,11 +32,12 @@ async function adminLogin(salaId, senhaPlain) {
   return token;
 }
 
-async function criarSala(nome, senhaAdmin, previewUrl, userToken) {
+async function criarSala(nome, senhaAdmin, previewUrl, userToken, repoUrl) {
   try {
     const params = { p_nome: nome, p_senha: senhaAdmin };
     if (previewUrl) params.p_preview_url = previewUrl;
     if (userToken) params.p_user_token = userToken;
+    if (repoUrl && String(repoUrl).trim()) params.p_repo_url = String(repoUrl).trim();
     const { data, error } = await sb.rpc('rpc_criar_sala', params);
 
     if (error) {

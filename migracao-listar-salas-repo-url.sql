@@ -1,5 +1,77 @@
--- Inclui repo_url na listagem do painel (rode no Supabase SQL Editor)
+-- Inclui repo_url na listagem + gravação na criação da sala (rode no Supabase SQL Editor)
 -- Necessário para o botão GitHub e o nome do diretório no card
+
+-- Substitui rpc_criar_sala para aceitar p_repo_url (grava na mesma transação do INSERT)
+DROP FUNCTION IF EXISTS public.rpc_criar_sala(text, text, text, uuid, text);
+DROP FUNCTION IF EXISTS public.rpc_criar_sala(text, text, text, uuid);
+DROP FUNCTION IF EXISTS public.rpc_criar_sala(text, text, text);
+DROP FUNCTION IF EXISTS public.rpc_criar_sala(text, text);
+
+CREATE OR REPLACE FUNCTION public.rpc_criar_sala(
+  p_nome text,
+  p_senha text,
+  p_preview_url text DEFAULT '',
+  p_user_token uuid DEFAULT NULL,
+  p_repo_url text DEFAULT ''
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_id uuid;
+  v_doc text;
+  v_criada timestamptz;
+  v_user_id uuid;
+BEGIN
+  IF p_nome IS NULL OR trim(p_nome) = '' THEN
+    RAISE EXCEPTION 'nome obrigatório';
+  END IF;
+  IF p_senha IS NULL OR length(p_senha) < 4 THEN
+    RAISE EXCEPTION 'senha deve ter pelo menos 4 caracteres';
+  END IF;
+
+  IF p_user_token IS NULL THEN
+    RAISE EXCEPTION 'Autenticação obrigatória para criar salas';
+  END IF;
+
+  SELECT u.id INTO v_user_id
+    FROM public.user_sessions s
+    JOIN public.usuarios u ON u.id = s.usuario_id
+   WHERE s.token = p_user_token AND s.expires_at > now() AND u.ativo = true;
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Sessão inválida ou expirada. Faça login novamente.';
+  END IF;
+
+  v_doc := '# ' || trim(p_nome) || E'\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n';
+
+  INSERT INTO public.salas (nome, documento, status, senha_admin_hash, preview_url, criado_por, repo_url)
+  VALUES (
+    trim(p_nome),
+    v_doc,
+    'ativa',
+    crypt(p_senha, gen_salt('bf')),
+    coalesce(trim(p_preview_url), ''),
+    v_user_id,
+    coalesce(nullif(trim(p_repo_url), ''), '')
+  )
+  RETURNING id, criada_em INTO v_id, v_criada;
+
+  RETURN jsonb_build_object(
+    'id', v_id,
+    'nome', trim(p_nome),
+    'documento', v_doc,
+    'status', 'ativa',
+    'preview_url', coalesce(trim(p_preview_url), ''),
+    'repo_url', coalesce(nullif(trim(p_repo_url), ''), ''),
+    'criada_em', v_criada
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_criar_sala(text, text, text, uuid, text) TO anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.rpc_listar_salas_admin(p_token uuid)
 RETURNS jsonb

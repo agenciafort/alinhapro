@@ -76,7 +76,16 @@ CREATE POLICY "salas_select_por_id" ON public.salas
 -- 4. Tornar criação de sala obrigatoriamente autenticada
 -- ================================================
 
-CREATE OR REPLACE FUNCTION public.rpc_criar_sala(p_nome text, p_senha text, p_preview_url text DEFAULT '', p_user_token uuid DEFAULT NULL)
+DROP FUNCTION IF EXISTS public.rpc_criar_sala(text, text, text, uuid, text);
+DROP FUNCTION IF EXISTS public.rpc_criar_sala(text, text, text, uuid);
+
+CREATE OR REPLACE FUNCTION public.rpc_criar_sala(
+  p_nome text,
+  p_senha text,
+  p_preview_url text DEFAULT '',
+  p_user_token uuid DEFAULT NULL,
+  p_repo_url text DEFAULT ''
+)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -111,8 +120,16 @@ BEGIN
 
   v_doc := '# ' || trim(p_nome) || E'\n\nBem-vindo à sala de consultoria.\n\n## Tópicos\n\n- Aguardando início da discussão...\n';
 
-  INSERT INTO public.salas (nome, documento, status, senha_admin_hash, preview_url, criado_por)
-  VALUES (trim(p_nome), v_doc, 'ativa', crypt(p_senha, gen_salt('bf')), coalesce(trim(p_preview_url), ''), v_user_id)
+  INSERT INTO public.salas (nome, documento, status, senha_admin_hash, preview_url, criado_por, repo_url)
+  VALUES (
+    trim(p_nome),
+    v_doc,
+    'ativa',
+    crypt(p_senha, gen_salt('bf')),
+    coalesce(trim(p_preview_url), ''),
+    v_user_id,
+    coalesce(nullif(trim(p_repo_url), ''), '')
+  )
   RETURNING id, criada_em INTO v_id, v_criada;
 
   RETURN jsonb_build_object(
@@ -121,6 +138,7 @@ BEGIN
     'documento', v_doc,
     'status', 'ativa',
     'preview_url', coalesce(trim(p_preview_url), ''),
+    'repo_url', coalesce(nullif(trim(p_repo_url), ''), ''),
     'criada_em', v_criada
   );
 END;
