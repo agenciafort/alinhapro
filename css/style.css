@@ -460,7 +460,6 @@ body:has(.sala-container) {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
 }
 
 .sala-chat {
