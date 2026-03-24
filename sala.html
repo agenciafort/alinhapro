@@ -425,13 +425,6 @@
           (payload) => { if (payload.new && payload.new.fase_atual) document.getElementById('faseBadge').textContent = 'Fase ' + payload.new.fase_atual; }
         ).subscribe();
 
-      document.getElementById('navSairConsultor').addEventListener('click', () => {
-        if (!salaIdGlobal) return;
-        fecharEditorSeAberto();
-        limparSessaoConsultor(salaIdGlobal);
-        esconderUiAdmin();
-        showToast('Modo consultor encerrado.');
-      });
       } catch(e) { console.error('INIT ERROR:', e); showToast('Erro ao carregar sala: ' + e.message); }
     }
 
@@ -488,6 +481,16 @@
         if (localStorage.getItem(CHAT_KEY) === '1') applyCollapsed(true);
       } catch (_) {}
     }
+
+    /* Fora de init(): se init() falhar no meio (ex. Realtime), o botão ainda precisa funcionar */
+    document.getElementById('navSairConsultor').addEventListener('click', () => {
+      if (!salaIdGlobal) return;
+      fecharEditorSeAberto();
+      limparSessaoConsultor(salaIdGlobal);
+      stripQueryParams(['consultor', 'admin']);
+      esconderUiAdmin();
+      showToast('Modo consultor encerrado.');
+    });
 
     init();
     setupChatToggle();

@@ -1,4 +1,6 @@
 :root {
+  /* Tipografia única em todo o site (carregar Inter em cada página HTML) */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
   --primary-light: #dbeafe;
@@ -27,12 +29,24 @@
   box-sizing: border-box;
 }
 
+html {
+  font-family: var(--font-family);
+}
+
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-family);
   background: var(--gray-50);
   color: var(--gray-800);
   line-height: 1.6;
   min-height: 100vh;
+}
+
+/* Controles costumam ignorar a fonte do body no UA */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 /* ====== HEADER ====== */
@@ -813,7 +827,7 @@ body:has(.sala-container) {
   flex: 1;
   border: none;
   padding: 2rem 2.5rem;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-family);
   font-size: 0.9rem;
   line-height: 1.7;
   resize: none;
