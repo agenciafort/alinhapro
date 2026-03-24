@@ -105,6 +105,19 @@
       window.location.href = 'login.html';
     }
 
+    function nomeRepoDoGitHub(repoUrl) {
+      if (!repoUrl || typeof repoUrl !== 'string') return '';
+      const u = repoUrl.trim();
+      if (!u) return '';
+      try {
+        const path = new URL(u).pathname.replace(/\/$/, '');
+        const parts = path.split('/').filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : '';
+      } catch {
+        return '';
+      }
+    }
+
     async function carregarListaSalas() {
       const salas = await listarSalasAdmin();
       const container = document.getElementById('listaSalas');
@@ -120,10 +133,13 @@
         return;
       }
 
-      container.innerHTML = salas.map(s => `
+      container.innerHTML = salas.map(s => {
+        const repoNome = nomeRepoDoGitHub(s.repo_url);
+        return `
         <div class="sala-card">
           <div class="sala-card__info">
             <h3>${escapeHtmlAdmin(s.nome)} <span class="badge ${s.status === 'ativa' ? 'badge--active' : 'badge--done'}">${s.status}</span></h3>
+            ${repoNome ? `<p class="sala-card__repo">Repositório GitHub: <code>${escapeHtmlAdmin(repoNome)}</code></p>` : ''}
             <p>Criada em ${formatDate(s.criada_em)} &bull; Código: ${s.id.substring(0, 8)}...</p>
           </div>
           <div class="sala-card__actions">
@@ -138,7 +154,8 @@
             <button class="btn btn--sm btn--danger" onclick="deletarSala('${s.id}', '${escapeHtmlAdmin(s.nome)}')">Deletar</button>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function escapeHtmlAdmin(text) {
@@ -213,8 +230,17 @@
           return;
         }
 
-        if (repoUrl && sala.id) {
-          await sb.from('salas').update({ repo_url: repoUrl }).eq('id', sala.id);
+        if (repoUrl && sala.id && userToken) {
+          const { data: repoRpc, error: repoErr } = await sb.rpc('rpc_definir_repo_url', {
+            p_token: userToken,
+            p_sala_id: sala.id,
+            p_repo_url: repoUrl
+          });
+          if (repoErr) console.error('rpc_definir_repo_url:', repoErr);
+          else {
+            const rr = typeof repoRpc === 'string' ? JSON.parse(repoRpc) : repoRpc;
+            if (rr && !rr.ok) console.warn('repo_url:', rr.error);
+          }
         }
 
         fecharModalNovaSala();

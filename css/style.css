@@ -759,6 +759,20 @@ body:has(.sala-container) {
   color: var(--gray-500);
 }
 
+.sala-card__repo {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--gray-600);
+}
+
+.sala-card__repo code {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.35rem;
+  background: var(--gray-100);
+  border-radius: 4px;
+  color: var(--gray-800);
+}
+
 .sala-card__actions {
   display: flex;
   gap: 0.5rem;

@@ -473,6 +473,7 @@ BEGIN
         'nome', sa.nome,
         'status', sa.status,
         'preview_url', sa.preview_url,
+        'repo_url', coalesce(sa.repo_url, ''),
         'criada_em', sa.criada_em,
         'criado_por', sa.criado_por
       ) ORDER BY sa.criada_em DESC
@@ -486,6 +487,7 @@ BEGIN
         'nome', sa.nome,
         'status', sa.status,
         'preview_url', sa.preview_url,
+        'repo_url', coalesce(sa.repo_url, ''),
         'criada_em', sa.criada_em,
         'criado_por', sa.criado_por
       ) ORDER BY sa.criada_em DESC
