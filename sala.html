@@ -144,6 +144,7 @@
       meuNome = localStorage.getItem('alinhapro_admin_nome') || 'Consultor';
       localStorage.setItem('alinhapro_nome', meuNome);
       document.getElementById('btnEditar').style.display = '';
+      document.getElementById('btnEditarUrl').style.display = '';
       atualizarNavSala();
     }
 
@@ -152,6 +153,7 @@
       document.getElementById('btnEditar').style.display = 'none';
       document.getElementById('btnSalvar').style.display = 'none';
       document.getElementById('btnCancelar').style.display = 'none';
+      document.getElementById('btnEditarUrl').style.display = 'none';
       atualizarNavSala();
     }
 
@@ -254,45 +256,55 @@
       iniciarEditor(salaId, isAdmin);
 
       // ===== PREVIEW =====
-      const temPreview = salaAtual.preview_url && salaAtual.preview_url.trim() !== '';
       const panelPreview = document.getElementById('panelPreview');
       const panelDocumento = document.getElementById('panelDocumento');
       const previewIframe = document.getElementById('previewIframe');
       const previewUrlLabel = document.getElementById('previewUrlLabel');
       const btnRecarregar = document.getElementById('btnRecarregarPreview');
       const btnEditarUrl = document.getElementById('btnEditarUrl');
-      let previewUrlAtual = temPreview ? salaAtual.preview_url.trim() : '';
+      let previewUrlAtual = (salaAtual.preview_url || '').trim();
 
-      function carregarPreview(url) {
-        if (!url) return;
+      function ativarPreview(url) {
         previewUrlAtual = url;
         previewUrlLabel.textContent = url;
         previewIframe.src = url;
-      }
-
-      if (temPreview) {
         panelPreview.style.display = '';
         panelPreview.classList.add('preview-container--active');
         panelDocumento.style.display = 'none';
-        carregarPreview(previewUrlAtual);
-        if (isAdmin) btnEditarUrl.style.display = '';
-        btnRecarregar.addEventListener('click', () => {
-          previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
-          showToast('Preview recarregado');
-        });
-        btnEditarUrl.addEventListener('click', async () => {
-          const novaUrl = prompt('Nova URL de preview:', previewUrlAtual);
-          if (novaUrl === null) return;
-          const ok = await atualizarPreviewUrl(salaId, novaUrl);
-          if (ok) { previewUrlAtual = novaUrl.trim(); carregarPreview(previewUrlAtual); showToast('URL atualizada!'); }
-        });
+      }
+
+      function mostrarDocumento() {
+        panelDocumento.style.display = '';
+        panelPreview.style.display = 'none';
+        panelPreview.classList.remove('preview-container--active');
+        previewUrlLabel.textContent = 'Sem URL definida';
+      }
+
+      if (isAdmin) btnEditarUrl.style.display = '';
+
+      btnRecarregar.addEventListener('click', () => {
+        if (!previewUrlAtual) { showToast('Defina uma URL primeiro.'); return; }
+        previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        showToast('Preview recarregado');
+      });
+
+      btnEditarUrl.addEventListener('click', async () => {
+        const novaUrl = prompt('URL do projeto do cliente (ex: https://meusite.netlify.app):', previewUrlAtual);
+        if (novaUrl === null) return;
+        const urlLimpa = novaUrl.trim();
+        if (!urlLimpa) { showToast('URL vazia.'); return; }
+        const ok = await atualizarPreviewUrl(salaId, urlLimpa);
+        if (ok) { ativarPreview(urlLimpa); showToast('Preview ativado!'); }
+      });
+
+      if (previewUrlAtual) {
+        ativarPreview(previewUrlAtual);
         setInterval(() => {
           if (!document.hidden && panelPreview.classList.contains('preview-container--active'))
             previewIframe.src = previewUrlAtual + (previewUrlAtual.includes('?') ? '&' : '?') + '_t=' + Date.now();
         }, 30000);
       } else {
-        panelDocumento.style.display = '';
-        panelPreview.style.display = 'none';
+        mostrarDocumento();
       }
 
       // ===== CHAT =====
@@ -318,7 +330,7 @@
         if (novaSala.documento !== undefined) atualizarVisualizacao(novaSala.documento);
         if (novaSala.preview_url !== undefined) {
           const novaUrl = (novaSala.preview_url || '').trim();
-          if (novaUrl && novaUrl !== previewUrlAtual) { previewUrlAtual = novaUrl; carregarPreview(novaUrl); }
+          if (novaUrl && novaUrl !== previewUrlAtual) ativarPreview(novaUrl);
         }
       });
 
