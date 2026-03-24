@@ -62,6 +62,12 @@ ALTER TABLE public.salas ADD COLUMN IF NOT EXISTS modo TEXT DEFAULT 'gratuito' C
 -- URL do repositório GitHub (para acesso rápido no painel)
 ALTER TABLE public.salas ADD COLUMN IF NOT EXISTS repo_url TEXT DEFAULT '';
 
+-- GRANT SELECT nas novas colunas para anon e authenticated
+GRANT SELECT (modo) ON public.salas TO anon, authenticated;
+GRANT SELECT (repo_url) ON public.salas TO anon, authenticated;
+GRANT UPDATE (repo_url) ON public.salas TO anon, authenticated;
+GRANT UPDATE (modo) ON public.salas TO anon, authenticated;
+
 -- RLS
 ALTER TABLE public.propostas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagamentos ENABLE ROW LEVEL SECURITY;
