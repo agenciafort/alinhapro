@@ -27,7 +27,7 @@
     </nav>
   </header>
 
-  <div class="sala-container">
+  <div class="sala-container" id="salaContainer">
     <!-- PREVIEW ou fallback documento -->
     <div class="sala-documento">
       <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" hidden>
@@ -66,13 +66,17 @@
       </div>
     </div>
 
-    <!-- CHAT -->
+    <!-- CHAT (recolher = mais área para o preview/documento) -->
+    <div class="sala-chat-wrap" id="salaChatWrap">
     <div class="sala-chat">
       <div class="chat-header">
         <div class="chat-header__title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Chat
         </div>
+        <button type="button" class="chat-header__collapse" id="btnChatCollapse" title="Recolher chat (ver em tela cheia)" aria-label="Recolher chat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
       </div>
 
       <!-- Banner de pagamento -->
@@ -90,7 +94,12 @@
         <button class="btn-decisao" id="btnDecisao" hidden title="Registrar a última mensagem como decisão aprovada" onclick="registrarDecisao()">&#10003;</button>
       </div>
     </div>
+    </div>
   </div>
+
+  <button type="button" class="chat-fab" id="btnChatExpand" hidden title="Abrir chat" aria-label="Abrir chat">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+  </button>
 
   <!-- PAINEL DE PAGAMENTO (aparece acima do chat quando há proposta) -->
   <div class="modal-overlay" id="modalProposta">
@@ -445,7 +454,34 @@
     btnCancelar.addEventListener('click', () => { btnEditar.style.display = ''; btnSalvar.style.display = 'none'; btnCancelar.style.display = 'none'; });
     btnSalvar.addEventListener('click', () => { btnEditar.style.display = ''; btnSalvar.style.display = 'none'; btnCancelar.style.display = 'none'; });
 
+    function setupChatToggle() {
+      const CHAT_KEY = 'alinhapro_sala_chat_collapsed';
+      const container = document.getElementById('salaContainer');
+      const btnCollapse = document.getElementById('btnChatCollapse');
+      const btnExpand = document.getElementById('btnChatExpand');
+      if (!container || !btnCollapse || !btnExpand) return;
+
+      function applyCollapsed(collapsed) {
+        if (collapsed) {
+          container.classList.add('sala--chat-collapsed');
+          btnExpand.hidden = false;
+        } else {
+          container.classList.remove('sala--chat-collapsed');
+          btnExpand.hidden = true;
+        }
+        try { localStorage.setItem(CHAT_KEY, collapsed ? '1' : '0'); } catch (_) {}
+      }
+
+      btnCollapse.addEventListener('click', () => applyCollapsed(true));
+      btnExpand.addEventListener('click', () => applyCollapsed(false));
+
+      try {
+        if (localStorage.getItem(CHAT_KEY) === '1') applyCollapsed(true);
+      } catch (_) {}
+    }
+
     init();
+    setupChatToggle();
 
     // ===== SISTEMA DE PAGAMENTO =====
     let propostaAtual = null;
