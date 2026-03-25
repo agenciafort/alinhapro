@@ -36,7 +36,10 @@
     <div class="sala-documento">
       <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" hidden>
         <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
+        <input type="url" id="inputTrocarUrl" class="form-input" style="display:none;flex:1;padding:4px 8px;font-size:0.78rem;min-width:0;border-radius:4px" placeholder="Cole a URL e pressione Enter...">
         <div class="preview-toolbar__actions">
+          <button type="button" class="btn btn--sm btn--secondary" id="btnTrocarUrl" title="Trocar URL do preview ao vivo" style="display:none">Trocar URL</button>
+          <button type="button" class="btn btn--sm btn--secondary" id="btnLimparUrl" title="Voltar para a URL original" style="display:none">Limpar</button>
           <button type="button" class="btn btn--sm btn--secondary" id="btnRecarregarPreview" title="Recarregar preview">Recarregar</button>
         </div>
       </div>
@@ -284,19 +287,26 @@
       const previewToolbarRow = document.getElementById('previewToolbarRow');
       const previewUrlLabel = document.getElementById('previewUrlLabel');
       const btnRecarregar = document.getElementById('btnRecarregarPreview');
+      const btnTrocarUrl = document.getElementById('btnTrocarUrl');
+      const btnLimparUrl = document.getElementById('btnLimparUrl');
+      const inputTrocarUrl = document.getElementById('inputTrocarUrl');
       let previewUrlAtual = '';
+      let previewUrlOriginal = '';
+      let heartbeatTimer = null;
 
       sincronizarPreviewChrome = function () {
         const hasUrl = !!previewUrlAtual;
         if (hasUrl) {
           previewToolbarRow.hidden = false;
           previewUrlLabel.textContent = previewUrlAtual;
+          previewUrlLabel.style.display = inputTrocarUrl.style.display === 'none' ? '' : 'none';
           panelPreview.style.display = '';
           panelPreview.classList.add('preview-container--active');
           panelDocumento.style.display = 'none';
         } else if (isAdmin) {
           previewToolbarRow.hidden = false;
-          previewUrlLabel.textContent = 'Sem URL de preview — defina ao criar a sala com projeto automático ou no painel (Recriar site).';
+          previewUrlLabel.textContent = 'Sem URL — clique em "Trocar URL" para mostrar qualquer site.';
+          previewUrlLabel.style.display = inputTrocarUrl.style.display === 'none' ? '' : 'none';
           panelPreview.style.display = 'none';
           panelPreview.classList.remove('preview-container--active');
           panelDocumento.style.display = '';
@@ -306,6 +316,10 @@
           panelPreview.style.display = 'none';
           panelPreview.classList.remove('preview-container--active');
         }
+        if (isAdmin) {
+          btnTrocarUrl.style.display = '';
+          btnLimparUrl.style.display = previewUrlAtual && previewUrlAtual !== previewUrlOriginal ? '' : 'none';
+        }
       };
 
       function ativarPreview(url) {
@@ -313,6 +327,82 @@
         if (previewUrlAtual) previewIframe.src = previewUrlAtual;
         sincronizarPreviewChrome();
       }
+
+      // Trocar URL ao vivo
+      btnTrocarUrl.addEventListener('click', () => {
+        if (inputTrocarUrl.style.display === 'none') {
+          inputTrocarUrl.style.display = '';
+          inputTrocarUrl.value = previewUrlAtual || '';
+          previewUrlLabel.style.display = 'none';
+          inputTrocarUrl.focus();
+          inputTrocarUrl.select();
+        } else {
+          inputTrocarUrl.style.display = 'none';
+          previewUrlLabel.style.display = '';
+        }
+      });
+
+      inputTrocarUrl.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const novaUrl = inputTrocarUrl.value.trim();
+          if (!novaUrl) return;
+          inputTrocarUrl.style.display = 'none';
+          previewUrlLabel.style.display = '';
+
+          ativarPreview(novaUrl);
+
+          const token = getAdminToken(salaIdGlobal) || getAuthToken();
+          if (token) {
+            const { data, error } = await sb.rpc('rpc_trocar_preview_url_live', {
+              p_token: token,
+              p_sala_id: salaIdGlobal,
+              p_url: novaUrl
+            });
+            if (error) showToast('Erro ao salvar URL: ' + error.message);
+            else showToast('URL trocada ao vivo!');
+          }
+        }
+        if (e.key === 'Escape') {
+          inputTrocarUrl.style.display = 'none';
+          previewUrlLabel.style.display = '';
+        }
+      });
+
+      btnLimparUrl.addEventListener('click', async () => {
+        if (!previewUrlOriginal) { showToast('Sem URL original para restaurar'); return; }
+        ativarPreview(previewUrlOriginal);
+        const token = getAdminToken(salaIdGlobal) || getAuthToken();
+        if (token) {
+          await sb.rpc('rpc_trocar_preview_url_live', {
+            p_token: token,
+            p_sala_id: salaIdGlobal,
+            p_url: previewUrlOriginal
+          });
+        }
+        showToast('URL original restaurada');
+      });
+
+      // Heartbeat: marca consultor_online enquanto está na sala
+      function iniciarHeartbeat() {
+        if (heartbeatTimer) return;
+        const token = getAdminToken(salaIdGlobal) || getAuthToken();
+        if (!token) return;
+        sb.rpc('rpc_heartbeat_consultor', { p_token: token, p_sala_id: salaIdGlobal, p_online: true });
+        heartbeatTimer = setInterval(() => {
+          sb.rpc('rpc_heartbeat_consultor', { p_token: token, p_sala_id: salaIdGlobal, p_online: true });
+        }, 30000);
+      }
+
+      function pararHeartbeat() {
+        if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        const token = getAdminToken(salaIdGlobal) || getAuthToken();
+        if (token && salaIdGlobal) {
+          sb.rpc('rpc_heartbeat_consultor', { p_token: token, p_sala_id: salaIdGlobal, p_online: false });
+        }
+      }
+
+      window.addEventListener('beforeunload', pararHeartbeat);
 
       btnRecarregar.addEventListener('click', () => {
         if (!previewUrlAtual) { showToast('Nenhuma URL de preview nesta sala.'); return; }
@@ -328,10 +418,12 @@
       }
 
       previewUrlAtual = (salaAtual.preview_url || '').trim();
+      previewUrlOriginal = previewUrlAtual;
 
       isAdmin = !!getAdminToken(salaId);
       if (isAdmin) {
         mostrarUiAdmin();
+        iniciarHeartbeat();
       }
       // Sync após isAdmin estar definido — garante barra visível
       if (previewUrlAtual) {

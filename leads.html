@@ -35,9 +35,6 @@
       <div style="display:flex;gap:0.5rem;align-items:center">
         <select id="filterPipeline" class="form-input" style="padding:6px 10px;font-size:0.82rem;min-width:120px">
           <option value="">Todos os pipelines</option>
-          <option value="geral">Geral</option>
-          <option value="sites">Sites</option>
-          <option value="consultoria">Consultoria</option>
         </select>
         <select id="filterStatus" class="form-input" style="padding:6px 10px;font-size:0.82rem;min-width:120px">
           <option value="">Todos os status</option>
@@ -48,6 +45,14 @@
           <option value="fechado">Fechado</option>
           <option value="perdido">Perdido</option>
         </select>
+        <button class="btn btn--sm btn--secondary" onclick="abrirModalPipelines()" title="Gerenciar pipelines">Pipelines</button>
+      </div>
+    </div>
+
+    <!-- Banner de follow-ups pendentes -->
+    <div id="followupBanner" class="pag-banner pag-banner--aguardando" style="display:none;margin-bottom:1rem;cursor:pointer" onclick="filtrarFollowups()">
+      <div class="pag-banner__content">
+        <strong id="followupBannerText">0 follow-ups pendentes</strong> — clique para ver
       </div>
     </div>
 
@@ -73,6 +78,24 @@
     </div>
   </div>
 
+  <!-- MODAL: Gerenciar Pipelines -->
+  <div class="modal-overlay" id="modalPipelines">
+    <div class="modal" style="max-width:440px">
+      <h2>Pipelines</h2>
+      <div id="pipelinesList" style="margin:1rem 0"></div>
+      <div style="display:flex;gap:0.5rem;align-items:flex-end">
+        <div class="form-group" style="flex:1;margin:0">
+          <label for="novoPipelineNome" style="font-size:0.75rem">Novo pipeline</label>
+          <input type="text" id="novoPipelineNome" placeholder="Ex: E-commerce" class="form-input" style="padding:6px 10px;font-size:0.85rem">
+        </div>
+        <button class="btn btn--primary btn--sm" onclick="criarNovoPipeline()">Criar</button>
+      </div>
+      <div class="modal__actions" style="margin-top:1rem">
+        <button class="btn btn--secondary" onclick="fecharModalPipelines()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase.js"></script>
   <script src="js/auth.js"></script>
@@ -81,11 +104,13 @@
     /* ─── Estado ─── */
     let currentUser = null;
     let leads = [];
+    let pipelines = [];
     let currentView = 'kanban';
     let realtimeChannel = null;
     let titleBlinkInterval = null;
     let originalTitle = document.title;
     let pendingNotifications = 0;
+    let draggedLeadId = null;
 
     const STATUS_LABELS = {
       novo: 'Novo',
@@ -126,6 +151,12 @@
       return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
     }
 
+    function formatDateInput(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toISOString().slice(0, 16);
+    }
+
     function isPhone(v) {
       return v && /\d{10,}/.test(v.replace(/\D/g, ''));
     }
@@ -146,6 +177,88 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
         E-mail
       </a>`;
+    }
+
+    /* ─── Pipelines ─── */
+    async function carregarPipelines() {
+      const token = getAuthToken();
+      if (!token) return;
+      const { data, error } = await sb.rpc('rpc_listar_pipelines', { p_token: token });
+      if (error) { console.error('rpc_listar_pipelines:', error); return; }
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (res && res.ok) {
+        pipelines = res.pipelines || [];
+      } else {
+        pipelines = [{ nome: 'Geral', slug: 'geral' }, { nome: 'Sites', slug: 'sites' }, { nome: 'Consultoria', slug: 'consultoria' }];
+      }
+      atualizarSelectPipelines();
+    }
+
+    function atualizarSelectPipelines() {
+      const sel = document.getElementById('filterPipeline');
+      const val = sel.value;
+      sel.innerHTML = '<option value="">Todos os pipelines</option>' +
+        pipelines.map(p => `<option value="${esc(p.slug)}">${esc(p.nome)}</option>`).join('');
+      sel.value = val;
+    }
+
+    function pipelineOptions(selectedSlug) {
+      return pipelines.map(p =>
+        `<option value="${esc(p.slug)}" ${p.slug === selectedSlug ? 'selected' : ''}>${esc(p.nome)}</option>`
+      ).join('');
+    }
+
+    function abrirModalPipelines() {
+      renderPipelinesList();
+      document.getElementById('modalPipelines').classList.add('modal-overlay--active');
+    }
+
+    function fecharModalPipelines() {
+      document.getElementById('modalPipelines').classList.remove('modal-overlay--active');
+    }
+
+    function renderPipelinesList() {
+      const el = document.getElementById('pipelinesList');
+      el.innerHTML = pipelines.map(p => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:0.9rem;font-weight:500">${esc(p.nome)}</span>
+          ${p.slug === 'geral' ? '<span class="text-sm text-muted">padrão</span>' :
+            `<button class="btn btn--sm btn--danger" onclick="deletarPipeline('${esc(p.slug)}')">Remover</button>`}
+        </div>
+      `).join('');
+    }
+
+    async function criarNovoPipeline() {
+      const nome = document.getElementById('novoPipelineNome').value.trim();
+      if (!nome) { showToast('Digite o nome'); return; }
+      const token = getAuthToken();
+      const { data, error } = await sb.rpc('rpc_criar_pipeline', { p_token: token, p_nome: nome });
+      if (error) { showToast('Erro: ' + error.message); return; }
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (res && res.ok) {
+        showToast('Pipeline criado!');
+        document.getElementById('novoPipelineNome').value = '';
+        await carregarPipelines();
+        renderPipelinesList();
+      } else {
+        showToast('Erro: ' + (res?.error || 'desconhecido'));
+      }
+    }
+
+    async function deletarPipeline(slug) {
+      if (!confirm('Deletar pipeline? Leads serão movidos para "Geral".')) return;
+      const token = getAuthToken();
+      const { data, error } = await sb.rpc('rpc_deletar_pipeline', { p_token: token, p_slug: slug });
+      if (error) { showToast('Erro: ' + error.message); return; }
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (res && res.ok) {
+        showToast('Pipeline removido');
+        await carregarPipelines();
+        renderPipelinesList();
+        await carregarLeads();
+      } else {
+        showToast('Erro: ' + (res?.error || 'desconhecido'));
+      }
     }
 
     /* ─── Carregar leads ─── */
@@ -169,6 +282,38 @@
       leads = res.leads || [];
       renderLeads();
       atualizarBadge();
+      atualizarFollowupBanner();
+    }
+
+    /* ─── Follow-up banner ─── */
+    function atualizarFollowupBanner() {
+      const now = new Date();
+      const pendentes = leads.filter(l => {
+        if (!l.lead_followup_em) return false;
+        return new Date(l.lead_followup_em) <= now;
+      });
+      const banner = document.getElementById('followupBanner');
+      const txt = document.getElementById('followupBannerText');
+      if (pendentes.length > 0) {
+        txt.textContent = pendentes.length + ' follow-up' + (pendentes.length > 1 ? 's' : '') + ' pendente' + (pendentes.length > 1 ? 's' : '');
+        banner.style.display = '';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    function filtrarFollowups() {
+      document.getElementById('filterStatus').value = '';
+      document.getElementById('filterPipeline').value = '';
+      const now = new Date();
+      const pendentes = leads.filter(l => l.lead_followup_em && new Date(l.lead_followup_em) <= now);
+      if (pendentes.length === 0) { showToast('Nenhum follow-up pendente'); return; }
+      if (pendentes.length === 1) {
+        abrirLead(pendentes[0].id);
+      } else {
+        renderLeads();
+        showToast('Mostrando ' + pendentes.length + ' follow-ups pendentes');
+      }
     }
 
     /* ─── Renderização ─── */
@@ -218,12 +363,13 @@
       container.innerHTML = STATUS_ORDER.map(status => {
         const items = grouped[status];
         return `
-          <div class="leads-column">
+          <div class="leads-column" data-status="${status}">
             <div class="leads-column__header">
               ${esc(STATUS_LABELS[status])}
               <span class="leads-column__count">${items.length}</span>
             </div>
-            <div class="leads-column__body">
+            <div class="leads-column__body" data-status="${status}"
+                 ondragover="onDragOver(event)" ondrop="onDrop(event, '${status}')" ondragleave="onDragLeave(event)">
               ${items.map(l => renderLeadCard(l)).join('')}
             </div>
           </div>
@@ -237,10 +383,17 @@
       const msgs = l.total_mensagens || 0;
       const lastMsg = l.ultima_mensagem ? esc(l.ultima_mensagem).substring(0, 60) : '';
       const ago = timeAgo(l.ultima_mensagem_em || l.criada_em);
+      const hasFollowup = l.lead_followup_em && new Date(l.lead_followup_em) <= new Date();
+      const followupIcon = hasFollowup ? '<span title="Follow-up pendente!" style="color:var(--danger);font-weight:700">⏰</span>' : '';
 
       return `
-        <div class="lead-card lead-card--${l.lead_status || 'novo'}" onclick="abrirLead('${l.id}')">
-          <div class="lead-card__name">${nome}</div>
+        <div class="lead-card lead-card--${l.lead_status || 'novo'}"
+             draggable="true"
+             data-lead-id="${l.id}"
+             ondragstart="onDragStart(event, '${l.id}')"
+             ondragend="onDragEnd(event)"
+             onclick="abrirLead('${l.id}')">
+          <div class="lead-card__name">${nome} ${followupIcon}</div>
           <div class="lead-card__contact">${contato}</div>
           ${lastMsg ? `<div class="lead-card__last-msg">"${lastMsg}"</div>` : ''}
           <div class="lead-card__meta">
@@ -256,14 +409,76 @@
 
     function renderLista(list) {
       const container = document.getElementById('leadsList');
-      container.innerHTML = list.map(l => `
-        <div class="lead-row" onclick="abrirLead('${l.id}')">
-          <div class="lead-row__name">${esc(l.lead_nome || 'Visitante')}</div>
-          <div class="lead-row__contact">${esc(l.lead_contato || '')}</div>
-          <div class="lead-row__status"><span class="badge ${l.lead_status === 'novo' ? 'badge--active' : ''}">${esc(STATUS_LABELS[l.lead_status] || l.lead_status)}</span></div>
-          <div class="lead-row__time">${timeAgo(l.ultima_mensagem_em || l.criada_em)}</div>
-        </div>
-      `).join('');
+      container.innerHTML = list.map(l => {
+        const hasFollowup = l.lead_followup_em && new Date(l.lead_followup_em) <= new Date();
+        return `
+          <div class="lead-row" onclick="abrirLead('${l.id}')">
+            <div class="lead-row__name">${esc(l.lead_nome || 'Visitante')} ${hasFollowup ? '<span style="color:var(--danger)">⏰</span>' : ''}</div>
+            <div class="lead-row__contact">${esc(l.lead_contato || '')}</div>
+            <div class="lead-row__status"><span class="badge ${l.lead_status === 'novo' ? 'badge--active' : ''}">${esc(STATUS_LABELS[l.lead_status] || l.lead_status)}</span></div>
+            <div class="lead-row__time">${timeAgo(l.ultima_mensagem_em || l.criada_em)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /* ─── Drag & Drop ─── */
+    function onDragStart(e, leadId) {
+      draggedLeadId = leadId;
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.style.opacity = '0.5';
+    }
+
+    function onDragEnd(e) {
+      e.target.style.opacity = '1';
+      draggedLeadId = null;
+      document.querySelectorAll('.leads-column__body').forEach(el => {
+        el.style.background = '';
+      });
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.style.background = 'rgba(37, 99, 235, 0.06)';
+    }
+
+    function onDragLeave(e) {
+      e.currentTarget.style.background = '';
+    }
+
+    async function onDrop(e, novoStatus) {
+      e.preventDefault();
+      e.currentTarget.style.background = '';
+      if (!draggedLeadId) return;
+
+      const lead = leads.find(l => l.id === draggedLeadId);
+      if (!lead || lead.lead_status === novoStatus) return;
+
+      lead.lead_status = novoStatus;
+      renderLeads();
+
+      const token = getAuthToken();
+      const { data, error } = await sb.rpc('rpc_atualizar_lead', {
+        p_token: token,
+        p_sala_id: draggedLeadId,
+        p_lead_status: novoStatus
+      });
+
+      if (error) {
+        showToast('Erro ao mover: ' + error.message);
+        await carregarLeads();
+        return;
+      }
+
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!res || !res.ok) {
+        showToast('Erro ao mover lead');
+        await carregarLeads();
+      } else {
+        showToast(`Lead movido para ${STATUS_LABELS[novoStatus]}`);
+        atualizarBadge();
+      }
     }
 
     /* ─── Badge no header ─── */
@@ -285,6 +500,8 @@
 
       const detail = document.getElementById('leadDetail');
       const pagina = lead.lead_pagina_origem ? esc(lead.lead_pagina_origem) : '(desconhecida)';
+      const followupVal = lead.lead_followup_em ? formatDateInput(lead.lead_followup_em) : '';
+      const isFollowupPendente = lead.lead_followup_em && new Date(lead.lead_followup_em) <= new Date();
 
       detail.innerHTML = `
         <div class="lead-detail__header">
@@ -308,9 +525,7 @@
           <div class="lead-detail__field">
             <label>Pipeline</label>
             <select id="leadPipelineSel" class="form-input" style="padding:5px 8px;font-size:0.82rem">
-              <option value="geral" ${lead.lead_pipeline === 'geral' ? 'selected' : ''}>Geral</option>
-              <option value="sites" ${lead.lead_pipeline === 'sites' ? 'selected' : ''}>Sites</option>
-              <option value="consultoria" ${lead.lead_pipeline === 'consultoria' ? 'selected' : ''}>Consultoria</option>
+              ${pipelineOptions(lead.lead_pipeline)}
             </select>
           </div>
           <div class="lead-detail__field">
@@ -331,8 +546,15 @@
           </div>
         </div>
 
+        <div class="lead-detail__field" style="margin-bottom:0.75rem">
+          <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--gray-500);margin-bottom:4px">
+            Follow-up ${isFollowupPendente ? '<span style="color:var(--danger);font-weight:700">⏰ PENDENTE</span>' : ''}
+          </label>
+          <input type="datetime-local" id="leadFollowup" class="form-input" style="padding:5px 8px;font-size:0.82rem;width:100%" value="${followupVal}">
+        </div>
+
         <div class="lead-detail__notes">
-          <label class="ap-form__label" style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--gray-500);margin-bottom:4px;display:block">Notas</label>
+          <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--gray-500);margin-bottom:4px">Notas</label>
           <textarea id="leadNotas" placeholder="Anotações sobre este lead...">${esc(lead.lead_notas || '')}</textarea>
         </div>
 
@@ -360,13 +582,16 @@
       const status = document.getElementById('leadStatusSel').value;
       const pipeline = document.getElementById('leadPipelineSel').value;
       const notas = document.getElementById('leadNotas').value;
+      const followupInput = document.getElementById('leadFollowup').value;
+      const followup = followupInput ? new Date(followupInput).toISOString() : null;
 
       const { data, error } = await sb.rpc('rpc_atualizar_lead', {
         p_token: token,
         p_sala_id: id,
         p_lead_status: status,
         p_lead_notas: notas,
-        p_lead_pipeline: pipeline
+        p_lead_pipeline: pipeline,
+        p_lead_followup_em: followup
       });
 
       if (error) {
@@ -517,6 +742,7 @@
       document.getElementById('headerUserName').textContent = currentUser.nome;
       document.getElementById('headerUserRole').textContent = currentUser.role === 'superadmin' ? 'Super Admin' : 'Admin';
 
+      await carregarPipelines();
       await carregarLeads();
       ouvirLeadsRealtime();
     })();

@@ -297,6 +297,19 @@ flex-shrink:0;transition:opacity .15s}\
       });
   }
 
+  /* ─── Verificar se consultor está online ─── */
+  function verificarConsultorOnline(salaIdCheck, cb) {
+    if (!sb || !salaIdCheck) return cb(false);
+    sb.from('salas')
+      .select('consultor_online')
+      .eq('id', salaIdCheck)
+      .maybeSingle()
+      .then(function (res) {
+        if (res.error || !res.data) return cb(false);
+        cb(!!res.data.consultor_online);
+      });
+  }
+
   /* ─── Render mensagem no DOM ─── */
   function renderMsg(msg, container) {
     var isMe = msg.autor === (leadNome || 'Visitante');
@@ -540,14 +553,20 @@ flex-shrink:0;transition:opacity .15s}\
       ouvirMsgs();
     }
 
-    /* ─── Enviar boas vindas automática (primeira mensagem do sistema) ─── */
+    /* ─── Boas-vindas: verifica se consultor está online ─── */
     function enviarMsgBoasVindas() {
-      buscarMsgOffline(function (offlineMsg) {
-        // Não envia — é o consultor que responde. Mas registra a mensagem offline se ele não estiver online.
-        // Por ora, a mensagem de boas-vindas é exibida localmente.
-        if (offlineMsg) {
-          var container = shadowRoot.getElementById('apMsgs');
-          renderSystemMsg(offlineMsg, container);
+      verificarConsultorOnline(salaId, function (online) {
+        var container = shadowRoot.getElementById('apMsgs');
+        if (online) {
+          renderSystemMsg('Consultor online! Aguarde que já vamos responder.', container);
+        } else {
+          buscarMsgOffline(function (offlineMsg) {
+            if (offlineMsg) {
+              renderSystemMsg(offlineMsg, container);
+            } else {
+              renderSystemMsg('Recebemos sua mensagem! Vamos responder assim que possível.', container);
+            }
+          });
         }
       });
     }
