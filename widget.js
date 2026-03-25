@@ -150,6 +150,14 @@ flex-shrink:0;transition:opacity .15s}\
 @media(max-width:380px){\
   .ap-fab__badge{display:none}\
 }\
+\
+.ap-inline{width:100%;height:480px;border-radius:16px;background:#fff;\
+box-shadow:0 4px 24px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05);\
+display:flex;flex-direction:column;overflow:hidden}\
+.ap-inline .ap-header{border-radius:16px 16px 0 0}\
+@media(max-width:480px){\
+  .ap-inline{height:400px;border-radius:12px}\
+}\
 ';
   }
 
@@ -340,7 +348,12 @@ flex-shrink:0;transition:opacity .15s}\
       html += '<div class="ap-msg__author">' + esc(msg.autor) + '</div>';
     }
     html += '<div>' + esc(msg.conteudo) + '</div>';
-    html += '<div class="ap-msg__time">' + fmtTime(msg.enviada_em) + '</div>';
+    html += '<div class="ap-msg__time">' + fmtTime(msg.enviada_em);
+    if (isMe) {
+      var read = msg.lida_em || msg.consultor_lida;
+      html += '<span class="ap-msg__ticks' + (read ? ' ap-msg__ticks--read' : '') + '">✓✓</span>';
+    }
+    html += '</div>';
     div.innerHTML = html;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
@@ -623,7 +636,11 @@ flex-shrink:0;transition:opacity .15s}\
       renderMsg(optMsg, container);
 
       enviarMsg(texto, function (data) {
-        // Atualiza o id temporário se quiser. Por simplicidade, não atualizamos.
+        dispararNotificacao(
+          (leadNome || 'Visitante'),
+          texto.length > 100 ? texto.substring(0, 100) + '…' : texto,
+          '/leads.html'
+        );
       });
     }
 
@@ -632,10 +649,200 @@ flex-shrink:0;transition:opacity .15s}\
     if (savedContato) inputContato.value = savedContato;
   }
 
+  /* ─── Modo seção fixa (inline) ─── */
+  function initInlineSection() {
+    var sectionTarget = document.getElementById('alinhapro-chat-section');
+    if (!sectionTarget) return;
+
+    var inlineHost = document.createElement('div');
+    inlineHost.id = 'alinhapro-inline-host';
+    sectionTarget.appendChild(inlineHost);
+
+    var inlineShadow = inlineHost.attachShadow({ mode: 'open' });
+
+    var inlineStyle = document.createElement('style');
+    inlineStyle.textContent = getCSS();
+    inlineShadow.appendChild(inlineStyle);
+
+    var inlineWin = createWindow();
+    inlineWin.className = 'ap-inline';
+    inlineWin.style.pointerEvents = 'auto';
+    inlineShadow.appendChild(inlineWin);
+
+    var inlineForm = inlineShadow.getElementById('apForm');
+    var inlineMsgs = inlineShadow.getElementById('apMsgs');
+    var inlineCompose = inlineShadow.getElementById('apCompose');
+    var inlineInputNome = inlineShadow.getElementById('apNome');
+    var inlineInputContato = inlineShadow.getElementById('apContato');
+    var inlineContatoError = inlineShadow.getElementById('apContatoError');
+    var inlineFormBtn = inlineShadow.getElementById('apFormBtn');
+    var inlineInputMsg = inlineShadow.getElementById('apInput');
+    var inlineSendBtn = inlineShadow.getElementById('apSendBtn');
+    var inlineCloseBtn = inlineShadow.querySelector('.ap-header__close');
+
+    if (inlineCloseBtn) inlineCloseBtn.style.display = 'none';
+
+    var savedSalaId = lsGet('sala_id');
+    var savedNome = lsGet('nome');
+    var savedContato = lsGet('contato');
+
+    if (savedSalaId && savedContato) {
+      formSubmitted = true;
+      salaId = savedSalaId;
+      leadNome = savedNome || 'Visitante';
+      leadContato = savedContato;
+    }
+
+    function showInlineChat() {
+      inlineForm.style.display = 'none';
+      inlineMsgs.style.display = 'flex';
+      inlineCompose.style.display = 'flex';
+      if (!sb) {
+        carregarSupabase(function () {
+          initSupabase();
+          loadInline();
+        });
+      } else {
+        loadInline();
+      }
+    }
+
+    function loadInline() {
+      carregarMsgs(function (list) {
+        inlineMsgs.innerHTML = '';
+        if (list.length === 0) {
+          renderSystemMsg('Conversa iniciada. Aguardando resposta...', inlineMsgs);
+        } else {
+          list.forEach(function (m) { renderMsg(m, inlineMsgs); });
+        }
+        inlineMsgs.scrollTop = inlineMsgs.scrollHeight;
+      });
+      if (!channel) ouvirMsgs();
+    }
+
+    function submitInlineForm() {
+      var nome = inlineInputNome.value.trim();
+      var contato = inlineInputContato.value.trim();
+      var err = validarContato(contato);
+      if (err) {
+        inlineContatoError.textContent = err;
+        inlineContatoError.style.display = 'block';
+        inlineInputContato.classList.add('ap-form__input--error');
+        return;
+      }
+      inlineContatoError.style.display = 'none';
+      inlineInputContato.classList.remove('ap-form__input--error');
+      inlineFormBtn.disabled = true;
+      inlineFormBtn.textContent = 'Conectando...';
+      leadNome = nome || 'Visitante';
+      leadContato = contato;
+      criarSalaLead(nome, contato, function (data) {
+        inlineFormBtn.disabled = false;
+        inlineFormBtn.textContent = 'Iniciar conversa';
+        if (!data) {
+          inlineContatoError.textContent = 'Erro ao conectar. Tente novamente.';
+          inlineContatoError.style.display = 'block';
+          return;
+        }
+        salaId = data.sala_id;
+        formSubmitted = true;
+        lsSet('sala_id', salaId);
+        lsSet('nome', leadNome);
+        lsSet('contato', leadContato);
+        showInlineChat();
+        verificarConsultorOnline(salaId, function (online) {
+          if (online) {
+            renderSystemMsg('Consultor online! Aguarde que já vamos responder.', inlineMsgs);
+          } else {
+            buscarMsgOffline(function (offlineMsg) {
+              renderSystemMsg(offlineMsg || 'Recebemos sua mensagem! Vamos responder assim que possível.', inlineMsgs);
+            });
+          }
+        });
+      });
+    }
+
+    inlineFormBtn.addEventListener('click', submitInlineForm);
+    inlineInputContato.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submitInlineForm(); }
+    });
+    inlineInputNome.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); inlineInputContato.focus(); }
+    });
+
+    inlineInputMsg.addEventListener('input', function () {
+      autosize(inlineInputMsg);
+      inlineSendBtn.disabled = !inlineInputMsg.value.trim();
+    });
+
+    inlineInputMsg.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        doInlineSend();
+      }
+    });
+
+    inlineSendBtn.addEventListener('click', doInlineSend);
+
+    function doInlineSend() {
+      var texto = inlineInputMsg.value.trim();
+      if (!texto || !salaId) return;
+      inlineSendBtn.disabled = true;
+      inlineInputMsg.value = '';
+      autosize(inlineInputMsg);
+      var optMsg = {
+        id: 'temp-' + Date.now(),
+        autor: leadNome || 'Visitante',
+        conteudo: texto,
+        enviada_em: new Date().toISOString()
+      };
+      renderMsg(optMsg, inlineMsgs);
+      enviarMsg(texto, function () {
+        dispararNotificacao(
+          (leadNome || 'Visitante'),
+          texto.length > 100 ? texto.substring(0, 100) + '…' : texto,
+          '/leads.html'
+        );
+      });
+    }
+
+    if (savedNome) inlineInputNome.value = savedNome;
+    if (savedContato) inlineInputContato.value = savedContato;
+
+    if (formSubmitted) {
+      carregarSupabase(function () {
+        initSupabase();
+        showInlineChat();
+      });
+    }
+
+    /* IntersectionObserver: esconde/mostra FAB quando seção sai/entra da viewport */
+    if ('IntersectionObserver' in window && shadowRoot) {
+      var fabEl = shadowRoot.querySelector('.ap-fab');
+      if (fabEl) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              fabEl.style.display = 'none';
+            } else {
+              fabEl.style.display = '';
+            }
+          });
+        }, { threshold: 0.1 });
+        observer.observe(sectionTarget);
+      }
+    }
+  }
+
   /* ─── Boot ─── */
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
+  function boot() {
     init();
+    initInlineSection();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 })();

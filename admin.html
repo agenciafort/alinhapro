@@ -31,6 +31,10 @@
         <span id="btnPushLabel">Push</span>
       </button>
       <button class="btn btn--primary btn--sm" onclick="abrirModalNovaSala()">+ Nova Sala</button>
+      <button type="button" class="btn btn--sm btn--secondary" onclick="abrirModalConfigs()" title="Configurações">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Config
+      </button>
       <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--cta" onclick="logout()">Sair</button>
     </nav>
   </header>
@@ -100,6 +104,42 @@
       </div>
       <div class="modal__actions">
         <button class="btn btn--primary" onclick="fecharModalLink()">Entendi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Configurações -->
+  <div class="modal-overlay" id="modalConfigs" hidden>
+    <div class="modal" style="max-width:520px">
+      <div class="modal__header">
+        <h3>Configurações</h3>
+        <button class="modal__close" onclick="fecharModalConfigs()">&times;</button>
+      </div>
+      <div class="modal__body" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="form-group">
+          <label>Mensagem automática (offline)</label>
+          <textarea id="cfgMsgOffline" rows="4" placeholder="Mensagem exibida quando você estiver offline…" style="width:100%;resize:vertical"></textarea>
+          <p class="text-sm text-muted mt-1">Exibida no widget quando o consultor está offline.</p>
+        </div>
+        <div class="form-group">
+          <label>Telegram — Bot Token</label>
+          <input type="text" id="cfgTelegramToken" placeholder="123456:ABCdefGHIjklMNOpqrsTUVwxyz">
+          <p class="text-sm text-muted mt-1">Token do bot criado via @BotFather.</p>
+        </div>
+        <div class="form-group">
+          <label>Telegram — Chat ID</label>
+          <input type="text" id="cfgTelegramChatId" placeholder="-1001234567890">
+          <p class="text-sm text-muted mt-1">ID do chat/grupo onde as notificações serão enviadas.</p>
+        </div>
+        <div class="form-group">
+          <label>VAPID Public Key (Web Push)</label>
+          <input type="text" id="cfgVapidKey" placeholder="BEl62iUYgUivxIkv69yViEuiBIa-Ib…">
+          <p class="text-sm text-muted mt-1">Chave pública VAPID para notificações push.</p>
+        </div>
+      </div>
+      <div class="modal__actions" style="justify-content:space-between">
+        <button class="btn btn--secondary" onclick="fecharModalConfigs()">Cancelar</button>
+        <button class="btn btn--primary" onclick="salvarConfigs()">Salvar</button>
       </div>
     </div>
   </div>
@@ -524,6 +564,57 @@
         if (ok) showToast('Notificações push ativadas! Você será alertado mesmo com o navegador minimizado.');
       }
       updatePushBtn();
+    }
+
+    /* ─── Configurações ─── */
+    async function abrirModalConfigs() {
+      document.getElementById('modalConfigs').hidden = false;
+      try {
+        const token = getAuthToken();
+        const { data } = await sb.rpc('rpc_listar_configs', { p_token: token });
+        if (data && data.ok && data.configs) {
+          document.getElementById('cfgMsgOffline').value = data.configs.mensagem_offline || '';
+          document.getElementById('cfgTelegramToken').value = data.configs.telegram_bot_token || '';
+          document.getElementById('cfgTelegramChatId').value = data.configs.telegram_chat_id || '';
+          document.getElementById('cfgVapidKey').value = data.configs.vapid_public_key || '';
+        }
+      } catch (err) {
+        console.error('Erro ao carregar configs:', err);
+      }
+    }
+
+    function fecharModalConfigs() {
+      document.getElementById('modalConfigs').hidden = true;
+    }
+
+    async function salvarConfigs() {
+      const token = getAuthToken();
+      const configs = [
+        { chave: 'mensagem_offline', valor: document.getElementById('cfgMsgOffline').value.trim() },
+        { chave: 'telegram_bot_token', valor: document.getElementById('cfgTelegramToken').value.trim() },
+        { chave: 'telegram_chat_id', valor: document.getElementById('cfgTelegramChatId').value.trim() },
+        { chave: 'vapid_public_key', valor: document.getElementById('cfgVapidKey').value.trim() }
+      ];
+
+      let erros = 0;
+      for (const c of configs) {
+        const { data, error } = await sb.rpc('rpc_salvar_config', {
+          p_token: token,
+          p_chave: c.chave,
+          p_valor: c.valor
+        });
+        if (error || (data && !data.ok)) erros++;
+      }
+
+      if (erros === 0) {
+        showToast('Configurações salvas!');
+        fecharModalConfigs();
+        const vapid = document.getElementById('cfgVapidKey').value.trim();
+        const meta = document.querySelector('meta[name="vapid-key"]');
+        if (meta && vapid) meta.content = vapid;
+      } else {
+        showToast('Erro ao salvar ' + erros + ' configuração(ões)');
+      }
     }
 
     (async function init() {
