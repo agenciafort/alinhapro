@@ -35,6 +35,10 @@
     <!-- PREVIEW ou fallback documento -->
     <div class="sala-documento">
       <div class="preview-toolbar preview-toolbar--top" id="previewToolbarRow" hidden>
+        <div class="rtc-live-badge" id="rtcLiveBadge" style="display:none">
+          <span class="rtc-live-badge__dot"></span>
+          <span>Ao vivo</span>
+        </div>
         <span class="preview-toolbar__url" id="previewUrlLabel">Carregando…</span>
         <input type="url" id="inputTrocarUrl" class="form-input" style="display:none;flex:1;padding:4px 8px;font-size:0.78rem;min-width:0;border-radius:4px" placeholder="Cole a URL e pressione Enter...">
         <div class="preview-toolbar__actions">
@@ -72,21 +76,17 @@
         </div>
       </div>
 
-      <!-- Indicador "Ao vivo" (cliente) -->
-      <div class="rtc-live-badge" id="rtcLiveBadge" style="display:none">
-        <span class="rtc-live-badge__dot"></span>
-        <span>Ao vivo</span>
-      </div>
-
       <div class="preview-container" id="panelPreview" style="display:none;">
-        <!-- Vídeo remoto (WebRTC) — sobrepõe o iframe quando ativo -->
-        <video id="rtcRemoteVideo" class="rtc-remote-video" autoplay playsinline style="display:none"></video>
-        <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-forms allow-popups" loading="lazy"></iframe>
+        <div id="rtcVideoContainer" style="display:none;width:100%;height:100%;background:#000;position:relative">
+          <video id="rtcRemoteVideo" class="rtc-remote-video" autoplay playsinline></video>
+        </div>
+        <iframe id="previewIframe" class="preview-iframe" sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-top-navigation-by-user-activation" loading="lazy" allow="autoplay; fullscreen"></iframe>
         <div class="preview-shield" id="previewShield"></div>
       </div>
 
       <!-- Vídeo local pequeno (picture-in-picture do consultor) -->
       <video id="rtcLocalVideo" class="rtc-local-video" autoplay playsinline muted style="display:none"></video>
+      <button type="button" class="rtc-local-video__close" id="btnCloseLocalVideo" style="display:none" title="Fechar câmera">✕</button>
 
       <!-- Fallback: documento Markdown (quando não tem preview_url) -->
       <div id="panelDocumento">
@@ -928,9 +928,77 @@
       const statusEl = document.getElementById('rtcStatus');
       const liveBadge = document.getElementById('rtcLiveBadge');
       const remoteVideo = document.getElementById('rtcRemoteVideo');
+      const rtcVideoContainer = document.getElementById('rtcVideoContainer');
       const localVideo = document.getElementById('rtcLocalVideo');
+      const btnCloseLocal = document.getElementById('btnCloseLocalVideo');
       const panelPreview = document.getElementById('panelPreview');
       const previewIframe = document.getElementById('previewIframe');
+
+      /* ─── Vídeo local arrastável ─── */
+      let dragData = { dragging: false, offsetX: 0, offsetY: 0 };
+
+      function positionCloseBtn() {
+        const rect = localVideo.getBoundingClientRect();
+        btnCloseLocal.style.top = (rect.top - 6) + 'px';
+        btnCloseLocal.style.left = (rect.right - 6) + 'px';
+      }
+
+      localVideo.addEventListener('pointerdown', (e) => {
+        dragData.dragging = true;
+        dragData.offsetX = e.clientX - localVideo.getBoundingClientRect().left;
+        dragData.offsetY = e.clientY - localVideo.getBoundingClientRect().top;
+        localVideo.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+
+      document.addEventListener('pointermove', (e) => {
+        if (!dragData.dragging) return;
+        let x = e.clientX - dragData.offsetX;
+        let y = e.clientY - dragData.offsetY;
+        x = Math.max(0, Math.min(x, window.innerWidth - localVideo.offsetWidth));
+        y = Math.max(0, Math.min(y, window.innerHeight - localVideo.offsetHeight));
+        localVideo.style.left = x + 'px';
+        localVideo.style.top = y + 'px';
+        localVideo.style.right = 'auto';
+        localVideo.style.bottom = 'auto';
+        positionCloseBtn();
+      });
+
+      document.addEventListener('pointerup', () => {
+        dragData.dragging = false;
+      });
+
+      btnCloseLocal.addEventListener('click', () => {
+        rtcStopVideo();
+        showLocalVideo(false);
+        updateButtons();
+      });
+
+      function showLocalVideo(show) {
+        if (show && rtcState.localStream) {
+          localVideo.srcObject = rtcState.localStream;
+          localVideo.style.display = '';
+          btnCloseLocal.style.display = '';
+          requestAnimationFrame(positionCloseBtn);
+        } else {
+          localVideo.style.display = 'none';
+          localVideo.srcObject = null;
+          btnCloseLocal.style.display = 'none';
+        }
+      }
+
+      function showRemoteVideo(show) {
+        if (show) {
+          rtcVideoContainer.style.display = '';
+          previewIframe.style.display = 'none';
+          panelPreview.style.display = '';
+          panelPreview.classList.add('preview-container--active');
+          document.getElementById('panelDocumento').style.display = 'none';
+        } else {
+          rtcVideoContainer.style.display = 'none';
+          previewIframe.style.display = '';
+        }
+      }
 
       function waitForSala(cb) {
         if (salaIdGlobal) return cb();
@@ -942,12 +1010,10 @@
       waitForSala(() => {
         rtcInitSignaling(salaIdGlobal);
 
-        // Mostrar toolbar de mídia para o consultor
         if (isAdmin && rtcScreenShareSupported()) {
           toolbar.style.display = '';
         }
 
-        // Mostrar/esconder toolbar quando modo admin muda
         const origMostrarRTC = mostrarUiAdmin;
         mostrarUiAdmin = function () {
           origMostrarRTC();
@@ -980,7 +1046,6 @@
         }
       }
 
-      // Eventos da toolbar
       btnScreen.addEventListener('click', async () => {
         if (rtcState.isScreenSharing) {
           rtcStopScreenShare();
@@ -998,14 +1063,7 @@
       btnVideo.addEventListener('click', async () => {
         await rtcToggleVideo();
         updateButtons();
-        // Mostrar/esconder vídeo local
-        if (rtcState.isVideoOn && rtcState.localStream) {
-          localVideo.srcObject = rtcState.localStream;
-          localVideo.style.display = '';
-        } else {
-          localVideo.style.display = 'none';
-          localVideo.srcObject = null;
-        }
+        showLocalVideo(rtcState.isVideoOn);
       });
 
       btnRec.addEventListener('click', () => {
@@ -1038,24 +1096,16 @@
         if (recState.isRecording) recStop();
         rtcEndCall();
         updateButtons();
-        localVideo.style.display = 'none';
-        localVideo.srcObject = null;
-        remoteVideo.style.display = 'none';
-        remoteVideo.srcObject = null;
+        showLocalVideo(false);
+        showRemoteVideo(false);
         liveBadge.style.display = 'none';
-        previewIframe.style.display = '';
       });
 
-      // Callbacks do módulo RTC
       rtcState.onRemoteStream = (stream) => {
         remoteVideo.srcObject = stream;
         const hasVideo = stream.getVideoTracks().length > 0;
         if (hasVideo) {
-          remoteVideo.style.display = '';
-          previewIframe.style.display = 'none';
-          panelPreview.style.display = '';
-          panelPreview.classList.add('preview-container--active');
-          document.getElementById('panelDocumento').style.display = 'none';
+          showRemoteVideo(true);
         }
         liveBadge.style.display = '';
       };
@@ -1075,12 +1125,9 @@
         } else if (status === 'stopped' || status === 'closed' || status === 'remote-ended') {
           statusEl.textContent = '';
           statusEl.className = 'rtc-toolbar__status';
-          remoteVideo.style.display = 'none';
-          remoteVideo.srcObject = null;
+          showRemoteVideo(false);
           liveBadge.style.display = 'none';
-          localVideo.style.display = 'none';
-          localVideo.srcObject = null;
-          previewIframe.style.display = '';
+          showLocalVideo(false);
           updateButtons();
           if (status === 'remote-ended') {
             showToast('Apresentação encerrada');
@@ -1089,9 +1136,11 @@
           statusEl.textContent = 'Compartilhando tela';
           statusEl.className = 'rtc-toolbar__status rtc-toolbar__status--connected';
         } else if (status === 'screen-stopped') {
+          if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
+            showRemoteVideo(false);
+          }
           updateButtons();
         } else if (status.startsWith('media-status-')) {
-          // Atualizar badge de mídia remota para o cliente
           try {
             const ms = JSON.parse(status.replace('media-status-', ''));
             if (ms.screen || ms.video) {
@@ -1102,7 +1151,6 @@
         updateButtons();
       };
 
-      // Cleanup ao sair
       window.addEventListener('beforeunload', () => {
         rtcCleanup();
       });

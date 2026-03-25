@@ -27,12 +27,11 @@ const rtcState = {
   reconnectTimer: null,
   reconnectAttempts: 0,
   maxReconnectAttempts: 10,
-  role: null, // 'presenter' ou 'viewer'
+  role: null,
   onStatusChange: null,
   onRemoteStream: null,
 };
 
-/* ─── Helpers ─── */
 function rtcLog(msg) {
   console.log('[RTC]', msg);
 }
@@ -68,10 +67,10 @@ function rtcSendSignal(data) {
   });
 }
 
-/* ─── Criar PeerConnection ─── */
-function rtcCreatePC() {
-  if (rtcState.pc) {
-    rtcState.pc.close();
+/* ─── Garantir PeerConnection (reutiliza se existir) ─── */
+function rtcEnsurePC() {
+  if (rtcState.pc && rtcState.pc.signalingState !== 'closed') {
+    return rtcState.pc;
   }
 
   const pc = new RTCPeerConnection(RTC_CONFIG);
@@ -112,6 +111,17 @@ function rtcCreatePC() {
     rtcState.remoteStream.addTrack(e.track);
     if (rtcState.onRemoteStream) {
       rtcState.onRemoteStream(rtcState.remoteStream);
+    }
+  };
+
+  pc.onnegotiationneeded = async () => {
+    if (rtcState.role !== 'presenter') return;
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      rtcSendSignal({ type: 'offer', sdp: pc.localDescription });
+    } catch (err) {
+      rtcLog('Negotiation error: ' + err.message);
     }
   };
 
@@ -163,11 +173,11 @@ async function handleSignal(data) {
   try {
     if (data.type === 'offer') {
       rtcLog('Received offer');
-      if (!rtcState.pc) rtcCreatePC();
-      await rtcState.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-      const answer = await rtcState.pc.createAnswer();
-      await rtcState.pc.setLocalDescription(answer);
-      rtcSendSignal({ type: 'answer', sdp: rtcState.pc.localDescription });
+      const pc = rtcEnsurePC();
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      rtcSendSignal({ type: 'answer', sdp: pc.localDescription });
     }
 
     else if (data.type === 'answer') {
@@ -219,29 +229,16 @@ async function rtcStartScreenShare() {
     rtcState.isScreenSharing = true;
     rtcState.role = 'presenter';
 
-    // Quando o usuário clicar em "Parar compartilhamento" no navegador
     stream.getVideoTracks()[0].onended = () => {
       rtcStopScreenShare();
     };
 
-    const pc = rtcCreatePC();
-
+    const pc = rtcEnsurePC();
     stream.getTracks().forEach(track => {
       pc.addTrack(track, stream);
     });
 
-    // Se já tiver áudio local, adicionar também
-    if (rtcState.localStream) {
-      rtcState.localStream.getAudioTracks().forEach(track => {
-        pc.addTrack(track, rtcState.localStream);
-      });
-    }
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    rtcSendSignal({ type: 'offer', sdp: pc.localDescription });
     rtcSendSignal({ type: 'media-status', status: { screen: true, audio: rtcState.isAudioOn, video: rtcState.isVideoOn } });
-
     rtcNotifyStatus('screen-sharing');
     return true;
 
@@ -258,16 +255,20 @@ async function rtcStartScreenShare() {
 
 function rtcStopScreenShare() {
   if (rtcState.screenStream) {
-    rtcState.screenStream.getTracks().forEach(t => t.stop());
+    rtcState.screenStream.getTracks().forEach(t => {
+      if (rtcState.pc) {
+        const senders = rtcState.pc.getSenders();
+        const sender = senders.find(s => s.track === t);
+        if (sender) rtcState.pc.removeTrack(sender);
+      }
+      t.stop();
+    });
     rtcState.screenStream = null;
   }
   rtcState.isScreenSharing = false;
 
-  // Se não tem mais nenhuma mídia ativa, encerra a conexão
   if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
     rtcEndCall();
-  } else {
-    renegotiate();
   }
 
   rtcSendSignal({ type: 'media-status', status: { screen: false, audio: rtcState.isAudioOn, video: rtcState.isVideoOn } });
@@ -294,27 +295,17 @@ async function rtcStartAudio() {
     });
 
     if (!rtcState.localStream) {
-      rtcState.localStream = stream;
-    } else {
-      stream.getAudioTracks().forEach(t => rtcState.localStream.addTrack(t));
+      rtcState.localStream = new MediaStream();
     }
+    stream.getAudioTracks().forEach(t => rtcState.localStream.addTrack(t));
 
     rtcState.isAudioOn = true;
+    rtcState.role = rtcState.role || 'presenter';
 
-    if (rtcState.pc && rtcState.pc.signalingState !== 'closed') {
-      stream.getAudioTracks().forEach(track => {
-        rtcState.pc.addTrack(track, stream);
-      });
-      await renegotiate();
-    } else if (!rtcState.isScreenSharing && !rtcState.isVideoOn) {
-      // Iniciar conexão só com áudio
-      rtcState.role = 'presenter';
-      const pc = rtcCreatePC();
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      rtcSendSignal({ type: 'offer', sdp: pc.localDescription });
-    }
+    const pc = rtcEnsurePC();
+    stream.getAudioTracks().forEach(track => {
+      pc.addTrack(track, rtcState.localStream);
+    });
 
     rtcSendSignal({ type: 'media-status', status: { screen: rtcState.isScreenSharing, audio: true, video: rtcState.isVideoOn } });
     rtcNotifyStatus('audio-on');
@@ -333,12 +324,12 @@ async function rtcStartAudio() {
 function rtcStopAudio() {
   if (rtcState.localStream) {
     rtcState.localStream.getAudioTracks().forEach(t => {
-      t.stop();
       if (rtcState.pc) {
         const senders = rtcState.pc.getSenders();
         const sender = senders.find(s => s.track === t);
         if (sender) rtcState.pc.removeTrack(sender);
       }
+      t.stop();
       rtcState.localStream.removeTrack(t);
     });
   }
@@ -372,26 +363,17 @@ async function rtcStartVideo() {
     });
 
     if (!rtcState.localStream) {
-      rtcState.localStream = stream;
-    } else {
-      stream.getVideoTracks().forEach(t => rtcState.localStream.addTrack(t));
+      rtcState.localStream = new MediaStream();
     }
+    stream.getVideoTracks().forEach(t => rtcState.localStream.addTrack(t));
 
     rtcState.isVideoOn = true;
+    rtcState.role = rtcState.role || 'presenter';
 
-    if (rtcState.pc && rtcState.pc.signalingState !== 'closed') {
-      stream.getVideoTracks().forEach(track => {
-        rtcState.pc.addTrack(track, stream);
-      });
-      await renegotiate();
-    } else if (!rtcState.isScreenSharing && !rtcState.isAudioOn) {
-      rtcState.role = 'presenter';
-      const pc = rtcCreatePC();
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      rtcSendSignal({ type: 'offer', sdp: pc.localDescription });
-    }
+    const pc = rtcEnsurePC();
+    stream.getVideoTracks().forEach(track => {
+      pc.addTrack(track, rtcState.localStream);
+    });
 
     rtcSendSignal({ type: 'media-status', status: { screen: rtcState.isScreenSharing, audio: rtcState.isAudioOn, video: true } });
     rtcNotifyStatus('video-on');
@@ -410,12 +392,12 @@ async function rtcStartVideo() {
 function rtcStopVideo() {
   if (rtcState.localStream) {
     rtcState.localStream.getVideoTracks().forEach(t => {
-      t.stop();
       if (rtcState.pc) {
         const senders = rtcState.pc.getSenders();
         const sender = senders.find(s => s.track === t);
         if (sender) rtcState.pc.removeTrack(sender);
       }
+      t.stop();
       rtcState.localStream.removeTrack(t);
     });
   }
@@ -427,19 +409,6 @@ function rtcStopVideo() {
 
   rtcSendSignal({ type: 'media-status', status: { screen: rtcState.isScreenSharing, audio: rtcState.isAudioOn, video: false } });
   rtcNotifyStatus('video-off');
-}
-
-/* ─── Renegociar (adicionar/remover tracks mid-call) ─── */
-async function renegotiate() {
-  if (!rtcState.pc || rtcState.pc.signalingState === 'closed') return;
-  if (rtcState.role !== 'presenter') return;
-  try {
-    const offer = await rtcState.pc.createOffer();
-    await rtcState.pc.setLocalDescription(offer);
-    rtcSendSignal({ type: 'offer', sdp: rtcState.pc.localDescription });
-  } catch (err) {
-    rtcLog('Renegotiate error: ' + err.message);
-  }
 }
 
 /* ─── Encerrar tudo ─── */
