@@ -1046,11 +1046,24 @@
         }
       }
 
+      function showScreenPreview(show) {
+        if (show && rtcState.screenStream) {
+          remoteVideo.srcObject = rtcState.screenStream;
+          showRemoteVideo(true);
+          liveBadge.style.display = '';
+        } else if (!show && !rtcState.remoteStream) {
+          remoteVideo.srcObject = null;
+          showRemoteVideo(false);
+        }
+      }
+
       btnScreen.addEventListener('click', async () => {
         if (rtcState.isScreenSharing) {
           rtcStopScreenShare();
+          showScreenPreview(false);
         } else {
-          await rtcStartScreenShare();
+          const ok = await rtcStartScreenShare();
+          if (ok) showScreenPreview(true);
         }
         updateButtons();
       });
@@ -1136,8 +1149,9 @@
           statusEl.textContent = 'Compartilhando tela';
           statusEl.className = 'rtc-toolbar__status rtc-toolbar__status--connected';
         } else if (status === 'screen-stopped') {
+          showScreenPreview(false);
           if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
-            showRemoteVideo(false);
+            liveBadge.style.display = 'none';
           }
           updateButtons();
         } else if (status.startsWith('media-status-')) {
