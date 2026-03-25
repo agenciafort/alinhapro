@@ -1054,10 +1054,16 @@
       }
 
       function showScreenPreview(show) {
-        if (show) {
+        if (show && rtcState.screenStream) {
+          remoteVideo.srcObject = rtcState.screenStream;
+          showRemoteVideo(true);
           liveBadge.style.display = '';
-        } else if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
-          liveBadge.style.display = 'none';
+        } else {
+          remoteVideo.srcObject = null;
+          showRemoteVideo(false);
+          if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
+            liveBadge.style.display = 'none';
+          }
         }
       }
 
