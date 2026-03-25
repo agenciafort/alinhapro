@@ -477,8 +477,117 @@ function rtcStopAll() {
   rtcNotifyStatus('stopped');
 }
 
+/* ─── GRAVAÇÃO DE CHAMADA ─── */
+
+const recState = {
+  recorder: null,
+  chunks: [],
+  isRecording: false,
+  startTime: null,
+  onRecordingStatus: null
+};
+
+function recSupported() {
+  return typeof MediaRecorder !== 'undefined';
+}
+
+function recStart() {
+  if (!recSupported()) {
+    showToast('Gravação não suportada neste navegador');
+    return false;
+  }
+
+  var streams = [];
+
+  if (rtcState.screenStream) {
+    rtcState.screenStream.getTracks().forEach(function (t) { streams.push(t); });
+  }
+  if (rtcState.localStream) {
+    rtcState.localStream.getTracks().forEach(function (t) { streams.push(t); });
+  }
+  if (rtcState.remoteStream) {
+    rtcState.remoteStream.getTracks().forEach(function (t) { streams.push(t); });
+  }
+
+  if (streams.length === 0) {
+    showToast('Nenhuma mídia ativa para gravar');
+    return false;
+  }
+
+  var combined = new MediaStream(streams);
+
+  var mimeType = 'video/webm;codecs=vp9,opus';
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    mimeType = 'video/webm;codecs=vp8,opus';
+  }
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    mimeType = 'video/webm';
+  }
+
+  try {
+    recState.recorder = new MediaRecorder(combined, { mimeType: mimeType });
+  } catch (e) {
+    showToast('Erro ao iniciar gravação: ' + e.message);
+    return false;
+  }
+
+  recState.chunks = [];
+  recState.isRecording = true;
+  recState.startTime = Date.now();
+
+  recState.recorder.ondataavailable = function (e) {
+    if (e.data && e.data.size > 0) {
+      recState.chunks.push(e.data);
+    }
+  };
+
+  recState.recorder.onstop = function () {
+    recState.isRecording = false;
+    if (recState.chunks.length === 0) return;
+
+    var blob = new Blob(recState.chunks, { type: mimeType });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    a.href = url;
+    a.download = 'alinhapro-gravacao-' + timestamp + '.webm';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+
+    recState.chunks = [];
+    showToast('Gravação salva!');
+
+    if (recState.onRecordingStatus) recState.onRecordingStatus(false);
+  };
+
+  recState.recorder.onerror = function (e) {
+    rtcLog('Recording error: ' + (e.error ? e.error.message : 'unknown'));
+    recState.isRecording = false;
+    if (recState.onRecordingStatus) recState.onRecordingStatus(false);
+  };
+
+  recState.recorder.start(1000);
+  if (recState.onRecordingStatus) recState.onRecordingStatus(true);
+  return true;
+}
+
+function recStop() {
+  if (recState.recorder && recState.recorder.state !== 'inactive') {
+    recState.recorder.stop();
+  }
+  recState.isRecording = false;
+}
+
+function recGetDuration() {
+  if (!recState.isRecording || !recState.startTime) return 0;
+  return Math.floor((Date.now() - recState.startTime) / 1000);
+}
+
 /* ─── Cleanup ao sair da página ─── */
 function rtcCleanup() {
+  recStop();
   if (rtcState.signalingChannel) {
     sb.removeChannel(rtcState.signalingChannel);
     rtcState.signalingChannel = null;

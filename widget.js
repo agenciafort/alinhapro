@@ -237,6 +237,19 @@ flex-shrink:0;transition:opacity .15s}\
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
 
+  /* ─── Disparar notificação push/telegram para o consultor ─── */
+  function dispararNotificacao(titulo, corpo, url) {
+    var baseUrl = SCRIPT_TAG ? SCRIPT_TAG.src.replace(/\/widget\.js.*$/, '') : '';
+    if (!baseUrl) return;
+    try {
+      fetch(baseUrl + '/.netlify/functions/enviar-notificacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: titulo, body: corpo, url: url || '/leads.html' })
+      }).catch(function () { /* silent */ });
+    } catch (e) { /* silent */ }
+  }
+
   /* ─── Criar sala de lead ─── */
   function criarSalaLead(nome, contato, cb) {
     initSupabase();
@@ -253,6 +266,11 @@ flex-shrink:0;transition:opacity .15s}\
       }
       var d = res.data;
       if (d && d.ok) {
+        dispararNotificacao(
+          'Novo lead!',
+          (nome || 'Visitante') + ' (' + contato + ') — ' + window.location.hostname,
+          '/leads.html'
+        );
         cb(d);
       } else {
         console.error('[AlinhaPro Widget] rpc_criar_sala_lead:', d);

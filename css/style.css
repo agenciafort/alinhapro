@@ -1867,6 +1867,17 @@ body:has(.sala-container) {
   color: #f87171;
 }
 
+.rtc-toolbar__rec-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #f87171;
+  font-variant-numeric: tabular-nums;
+}
+
 .rtc-live-badge {
   position: absolute;
   top: 12px;
