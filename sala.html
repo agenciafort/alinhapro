@@ -974,6 +974,7 @@
           showLocalVideo(false);
           updateButtons();
         } else {
+          remotePiPHidden = true;
           localVideo.style.display = 'none';
           localVideo.srcObject = null;
           btnCloseLocal.style.display = 'none';
@@ -1053,10 +1054,16 @@
       }
 
       function showScreenPreview(show) {
-        if (show) {
+        if (show && rtcState.screenStream) {
+          remoteVideo.srcObject = rtcState.screenStream;
+          showRemoteVideo(true);
           liveBadge.style.display = '';
-        } else if (!show && !rtcState.remoteStream) {
-          liveBadge.style.display = 'none';
+        } else {
+          remoteVideo.srcObject = null;
+          showRemoteVideo(false);
+          if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
+            liveBadge.style.display = 'none';
+          }
         }
       }
 
@@ -1118,17 +1125,36 @@
       });
 
       let remoteMediaState = { screen: false, video: false, audio: false };
+      let remotePiPHidden = false;
 
       function showRemotePiP(show, stream) {
-        if (show && stream) {
+        if (show && stream && !remotePiPHidden) {
           localVideo.srcObject = stream;
           localVideo.style.display = '';
           btnCloseLocal.style.display = '';
           requestAnimationFrame(positionCloseBtn);
-        } else if (!show && !rtcState.isVideoOn) {
-          localVideo.style.display = 'none';
-          localVideo.srcObject = null;
-          btnCloseLocal.style.display = 'none';
+        } else {
+          if (!rtcState.isVideoOn) {
+            localVideo.style.display = 'none';
+            localVideo.srcObject = null;
+            btnCloseLocal.style.display = 'none';
+          }
+        }
+      }
+
+      function applyRemoteLayout() {
+        if (!rtcState.remoteStream || isAdmin) return;
+        const hasVideo = rtcState.remoteStream.getVideoTracks().length > 0;
+        if (!hasVideo) return;
+
+        if (remoteMediaState.screen) {
+          showRemotePiP(false, null);
+          remoteVideo.srcObject = rtcState.remoteStream;
+          showRemoteVideo(true);
+        } else {
+          showRemoteVideo(false);
+          remotePiPHidden = false;
+          showRemotePiP(true, rtcState.remoteStream);
         }
       }
 
@@ -1136,22 +1162,10 @@
         liveBadge.style.display = '';
 
         if (isAdmin) {
-          remoteVideo.srcObject = stream;
-          const hasVideo = stream.getVideoTracks().length > 0;
-          if (hasVideo) showRemoteVideo(true);
           return;
         }
 
-        if (remoteMediaState.screen) {
-          remoteVideo.srcObject = stream;
-          showRemoteVideo(true);
-        } else if (remoteMediaState.video) {
-          showRemotePiP(true, stream);
-        } else {
-          remoteVideo.srcObject = stream;
-          const hasVideo = stream.getVideoTracks().length > 0;
-          if (hasVideo) showRemotePiP(true, stream);
-        }
+        applyRemoteLayout();
       };
 
       rtcState.onStatusChange = (status) => {
@@ -1170,9 +1184,10 @@
           statusEl.textContent = '';
           statusEl.className = 'rtc-toolbar__status';
           showRemoteVideo(false);
-          showRemotePiP(false);
+          showRemotePiP(false, null);
           liveBadge.style.display = 'none';
           showLocalVideo(false);
+          remotePiPHidden = false;
           remoteMediaState = { screen: false, video: false, audio: false };
           updateButtons();
           if (status === 'remote-ended') {
@@ -1191,24 +1206,14 @@
           try {
             const ms = JSON.parse(status.replace('media-status-', ''));
             remoteMediaState = ms;
-
-            if (!isAdmin && rtcState.remoteStream) {
-              if (ms.screen) {
-                showRemotePiP(false);
-                remoteVideo.srcObject = rtcState.remoteStream;
-                showRemoteVideo(true);
-              } else if (ms.video && !ms.screen) {
-                showRemoteVideo(false);
-                showRemotePiP(true, rtcState.remoteStream);
-              } else if (!ms.screen && !ms.video) {
-                showRemoteVideo(false);
-                showRemotePiP(false);
-              }
-            }
+            remotePiPHidden = false;
+            applyRemoteLayout();
 
             if (ms.screen || ms.video) {
               liveBadge.style.display = '';
             } else if (!ms.screen && !ms.video) {
+              showRemoteVideo(false);
+              showRemotePiP(false, null);
               liveBadge.style.display = 'none';
             }
           } catch (_) {}
