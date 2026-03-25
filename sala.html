@@ -969,9 +969,15 @@
       });
 
       btnCloseLocal.addEventListener('click', () => {
-        rtcStopVideo();
-        showLocalVideo(false);
-        updateButtons();
+        if (isAdmin) {
+          rtcStopVideo();
+          showLocalVideo(false);
+          updateButtons();
+        } else {
+          localVideo.style.display = 'none';
+          localVideo.srcObject = null;
+          btnCloseLocal.style.display = 'none';
+        }
       });
 
       function showLocalVideo(show) {
@@ -1114,13 +1120,41 @@
         liveBadge.style.display = 'none';
       });
 
-      rtcState.onRemoteStream = (stream) => {
-        remoteVideo.srcObject = stream;
-        const hasVideo = stream.getVideoTracks().length > 0;
-        if (hasVideo) {
-          showRemoteVideo(true);
+      let remoteMediaState = { screen: false, video: false, audio: false };
+
+      function showRemotePiP(show, stream) {
+        if (show && stream) {
+          localVideo.srcObject = stream;
+          localVideo.style.display = '';
+          btnCloseLocal.style.display = '';
+          requestAnimationFrame(positionCloseBtn);
+        } else if (!show && !rtcState.isVideoOn) {
+          localVideo.style.display = 'none';
+          localVideo.srcObject = null;
+          btnCloseLocal.style.display = 'none';
         }
+      }
+
+      rtcState.onRemoteStream = (stream) => {
         liveBadge.style.display = '';
+
+        if (isAdmin) {
+          remoteVideo.srcObject = stream;
+          const hasVideo = stream.getVideoTracks().length > 0;
+          if (hasVideo) showRemoteVideo(true);
+          return;
+        }
+
+        if (remoteMediaState.screen) {
+          remoteVideo.srcObject = stream;
+          showRemoteVideo(true);
+        } else if (remoteMediaState.video) {
+          showRemotePiP(true, stream);
+        } else {
+          remoteVideo.srcObject = stream;
+          const hasVideo = stream.getVideoTracks().length > 0;
+          if (hasVideo) showRemotePiP(true, stream);
+        }
       };
 
       rtcState.onStatusChange = (status) => {
@@ -1139,8 +1173,10 @@
           statusEl.textContent = '';
           statusEl.className = 'rtc-toolbar__status';
           showRemoteVideo(false);
+          showRemotePiP(false);
           liveBadge.style.display = 'none';
           showLocalVideo(false);
+          remoteMediaState = { screen: false, video: false, audio: false };
           updateButtons();
           if (status === 'remote-ended') {
             showToast('Apresentação encerrada');
@@ -1157,8 +1193,26 @@
         } else if (status.startsWith('media-status-')) {
           try {
             const ms = JSON.parse(status.replace('media-status-', ''));
+            remoteMediaState = ms;
+
+            if (!isAdmin && rtcState.remoteStream) {
+              if (ms.screen) {
+                showRemotePiP(false);
+                remoteVideo.srcObject = rtcState.remoteStream;
+                showRemoteVideo(true);
+              } else if (ms.video && !ms.screen) {
+                showRemoteVideo(false);
+                showRemotePiP(true, rtcState.remoteStream);
+              } else if (!ms.screen && !ms.video) {
+                showRemoteVideo(false);
+                showRemotePiP(false);
+              }
+            }
+
             if (ms.screen || ms.video) {
               liveBadge.style.display = '';
+            } else if (!ms.screen && !ms.video) {
+              liveBadge.style.display = 'none';
             }
           } catch (_) {}
         }
