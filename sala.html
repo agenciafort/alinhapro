@@ -24,6 +24,7 @@
       <a href="#" class="header__nav-link header__nav-link--muted" id="navFases" title="Ver fases e aprovações do projeto">Fases</a>
       <a href="#" class="header__nav-link header__nav-link--muted" id="navResumo" title="Ver resumo, decisões e histórico da sessão">Resumo</a>
       <a href="admin.html" class="header__nav-link header__nav-link--muted" id="navPainel" hidden title="Gerenciar salas e criar novas">Painel</a>
+      <a href="leads.html" class="header__nav-link header__nav-link--muted" id="navLeads" hidden title="Gerenciar leads do chat">Leads</a>
       <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--muted" id="navSairConsultor" hidden title="Remove a sessão de edição neste navegador">Sair do modo consultor</button>
       <span class="header__nav-sep" id="navSepConsultor" hidden aria-hidden="true"></span>
       <a href="index.html" class="header__nav-link header__nav-link--cta" id="navSairSala" title="Voltar para entrar em outra sala">Sair da sala</a>
@@ -199,6 +200,7 @@
     function atualizarNavSala() {
       const temToken = salaIdGlobal && !!getAdminToken(salaIdGlobal);
       document.getElementById('navPainel').hidden = !temToken;
+      document.getElementById('navLeads').hidden = !temToken;
       document.getElementById('navSairConsultor').hidden = !temToken;
       document.getElementById('navSepConsultor').hidden = !temToken;
     }

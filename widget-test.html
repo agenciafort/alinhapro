@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget de Chat — Teste</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f8fafc; color: #334155; }
+    .hero { background: linear-gradient(135deg, #1e40af, #3b82f6); color: #fff; padding: 80px 24px 60px; text-align: center; }
+    .hero h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; }
+    .hero p { font-size: 1.1rem; opacity: .85; max-width: 600px; margin: 0 auto; }
+    .section { max-width: 800px; margin: 40px auto; padding: 0 24px; }
+    .section h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 12px; color: #1e40af; }
+    .section p { line-height: 1.7; margin-bottom: 16px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+    .code { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; font-family: 'Cascadia Code', monospace; font-size: 13px; overflow-x: auto; margin: 12px 0; }
+    .footer { text-align: center; padding: 40px 24px; color: #94a3b8; font-size: 13px; }
+    .badge { display: inline-block; background: #dbeafe; color: #1e40af; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <span class="badge">TESTE LOCAL</span>
+    <h1>Criação de Sites Profissionais</h1>
+    <p>Transformamos sua ideia em um site moderno, rápido e otimizado para converter visitantes em clientes.</p>
+  </div>
+
+  <div class="section">
+    <h2>Por que escolher nossos serviços?</h2>
+    <div class="card">
+      <h3>Sites que convertem</h3>
+      <p>Design focado em resultados. Cada elemento é pensado para guiar o visitante até a conversão.</p>
+    </div>
+    <div class="card">
+      <h3>SEO desde o primeiro dia</h3>
+      <p>Estrutura otimizada para Google, com velocidade de carregamento e boas práticas técnicas.</p>
+    </div>
+    <div class="card">
+      <h3>Suporte dedicado</h3>
+      <p>Acompanhamento em tempo real pelo chat. Tire dúvidas e negocie sem sair da página.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Como instalar o widget</h2>
+    <div class="code">&lt;script src="https://SEU-SITE.netlify.app/widget.js" data-key="SUA_KEY" async&gt;&lt;/script&gt;</div>
+    <p>Cole essa linha antes do <code>&lt;/body&gt;</code> de qualquer página HTML.</p>
+  </div>
+
+  <div class="footer">
+    <p>AlinhaPro — Página de teste do widget de chat</p>
+  </div>
+
+  <!-- Widget de chat -->
+  <script
+    src="widget.js"
+    data-url="https://fsrydwoacouogujvmdsf.supabase.co"
+    data-key="sb_publishable_Hwg8d69cRDqy6XBEfXljIQ_HZXN9qzs"
+    data-brand="AlinhaPro"
+    data-color="#2563eb"
+    data-greeting="Olá! Quer saber mais sobre criação de sites? Fale conosco!"
+    async>
+  </script>
+
+</body>
+</html>

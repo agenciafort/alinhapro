@@ -1794,6 +1794,318 @@ body:has(.sala-container) {
   color: var(--gray-800);
 }
 
+/* ====== LEADS / CRM ====== */
+
+.leads-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--gray-200);
+  margin-bottom: 1.5rem;
+}
+
+.leads-tabs__btn {
+  padding: 0.75rem 1.25rem;
+  border: none;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+  position: relative;
+}
+
+.leads-tabs__btn:hover { color: var(--gray-700); }
+.leads-tabs__btn--active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.leads-tabs__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 6px;
+  animation: leadPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes leadPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.leads-kanban {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.leads-column {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.leads-column__header {
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-600);
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.leads-column__count {
+  background: var(--gray-200);
+  color: var(--gray-600);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.leads-column__body {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 60px;
+}
+
+.lead-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.lead-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+}
+
+.lead-card--novo {
+  border-left: 3px solid var(--primary);
+}
+
+.lead-card--conversando {
+  border-left: 3px solid var(--warning);
+}
+
+.lead-card--proposta {
+  border-left: 3px solid #8b5cf6;
+}
+
+.lead-card--negociando {
+  border-left: 3px solid #f97316;
+}
+
+.lead-card--fechado {
+  border-left: 3px solid var(--success);
+}
+
+.lead-card--perdido {
+  border-left: 3px solid var(--gray-400);
+  opacity: 0.7;
+}
+
+.lead-card__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: 4px;
+}
+
+.lead-card__contact {
+  font-size: 0.78rem;
+  color: var(--primary);
+  word-break: break-all;
+}
+
+.lead-card__contact a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.lead-card__contact a:hover {
+  text-decoration: underline;
+}
+
+.lead-card__meta {
+  font-size: 0.72rem;
+  color: var(--gray-500);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lead-card__msgs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.lead-card__last-msg {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.leads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lead-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.lead-row:hover {
+  border-color: var(--primary);
+}
+
+.lead-row__name { font-weight: 600; flex: 1; min-width: 0; }
+.lead-row__contact { font-size: 0.8rem; color: var(--primary); flex: 0 0 auto; }
+.lead-row__status { font-size: 0.75rem; }
+.lead-row__time { font-size: 0.75rem; color: var(--gray-500); flex: 0 0 auto; }
+
+/* Lead detail modal */
+.lead-detail {
+  padding: 1.25rem;
+}
+
+.lead-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.lead-detail__name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.lead-detail__contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.lead-detail__contact-link:hover { opacity: 0.85; }
+
+.lead-detail__contact-link--whatsapp {
+  background: #25d366;
+  color: #fff;
+}
+
+.lead-detail__contact-link--email {
+  background: var(--primary);
+  color: #fff;
+}
+
+.lead-detail__info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.lead-detail__field {
+  font-size: 0.82rem;
+}
+
+.lead-detail__field label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 2px;
+}
+
+.lead-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.lead-detail__notes textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+/* Notification bell (header) */
+.notif-bell {
+  position: relative;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--gray-600);
+  transition: color 0.15s;
+}
+
+.notif-bell:hover { color: var(--gray-800); }
+
+.notif-bell__dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid #fff;
+  animation: leadPulse 1.5s ease-in-out infinite;
+}
+
 /* ====== UTILITIES ====== */
 .mt-1 { margin-top: 0.5rem; }
 .mt-2 { margin-top: 1rem; }

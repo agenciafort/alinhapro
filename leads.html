@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlinhaPro — Leads</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="admin.html" class="header__logo">
+      <img src="img/alinhapro-logo.svg" alt="" class="header__logo-img" width="40" height="40" decoding="async">
+      Alinha<span>Pro</span>
+    </a>
+    <div class="header__sala-info">
+      <span class="header__sala-title" id="headerUserName">Carregando…</span>
+      <span class="badge badge--active" id="headerUserRole"></span>
+    </div>
+    <nav class="header__nav">
+      <a href="admin.html" class="header__nav-link header__nav-link--muted">Salas</a>
+      <a href="leads.html" class="header__nav-link header__nav-link--cta" id="navLeadsLink">
+        Leads
+        <span class="leads-tabs__badge" id="headerLeadBadge" style="display:none">0</span>
+      </a>
+      <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--muted" onclick="logout()">Sair</button>
+    </nav>
+  </header>
+
+  <div class="admin-container">
+    <div class="admin-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+      <h1>Leads do Chat</h1>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <select id="filterPipeline" class="form-input" style="padding:6px 10px;font-size:0.82rem;min-width:120px">
+          <option value="">Todos os pipelines</option>
+          <option value="geral">Geral</option>
+          <option value="sites">Sites</option>
+          <option value="consultoria">Consultoria</option>
+        </select>
+        <select id="filterStatus" class="form-input" style="padding:6px 10px;font-size:0.82rem;min-width:120px">
+          <option value="">Todos os status</option>
+          <option value="novo">Novo</option>
+          <option value="conversando">Conversando</option>
+          <option value="proposta">Proposta</option>
+          <option value="negociando">Negociando</option>
+          <option value="fechado">Fechado</option>
+          <option value="perdido">Perdido</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="leads-tabs" id="viewTabs">
+      <button class="leads-tabs__btn leads-tabs__btn--active" data-view="kanban">Kanban</button>
+      <button class="leads-tabs__btn" data-view="lista">Lista</button>
+    </div>
+
+    <div id="leadsKanban" class="leads-kanban"></div>
+    <div id="leadsList" class="leads-list" style="display:none"></div>
+
+    <div class="empty-state" id="leadsEmpty" style="display:none">
+      <div class="empty-state__icon">&#128172;</div>
+      <p>Nenhum lead ainda.</p>
+      <p class="text-sm text-muted mt-1">Quando alguém conversar pelo widget, aparecerá aqui.</p>
+    </div>
+  </div>
+
+  <!-- MODAL: Detalhes do Lead -->
+  <div class="modal-overlay" id="modalLead">
+    <div class="modal" style="max-width:560px">
+      <div class="lead-detail" id="leadDetail"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+
+    /* ─── Estado ─── */
+    let currentUser = null;
+    let leads = [];
+    let currentView = 'kanban';
+    let realtimeChannel = null;
+    let titleBlinkInterval = null;
+    let originalTitle = document.title;
+    let pendingNotifications = 0;
+
+    const STATUS_LABELS = {
+      novo: 'Novo',
+      conversando: 'Conversando',
+      proposta: 'Proposta',
+      negociando: 'Negociando',
+      fechado: 'Fechado',
+      perdido: 'Perdido'
+    };
+
+    const STATUS_ORDER = ['novo', 'conversando', 'proposta', 'negociando', 'fechado', 'perdido'];
+
+    async function logout() {
+      await authLogout();
+      window.location.href = 'login.html';
+    }
+
+    /* ─── Helpers ─── */
+    function esc(t) {
+      const d = document.createElement('div');
+      d.textContent = t;
+      return d.innerHTML;
+    }
+
+    function timeAgo(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const now = new Date();
+      const diff = Math.floor((now - d) / 1000);
+      if (diff < 60) return 'agora';
+      if (diff < 3600) return Math.floor(diff / 60) + 'min';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+      return Math.floor(diff / 86400) + 'd';
+    }
+
+    function formatDateBr(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function isPhone(v) {
+      return v && /\d{10,}/.test(v.replace(/\D/g, ''));
+    }
+
+    function whatsappLink(phone) {
+      return 'https://wa.me/55' + phone.replace(/\D/g, '');
+    }
+
+    function contactLink(contato) {
+      if (!contato) return '';
+      if (isPhone(contato)) {
+        return `<a href="${whatsappLink(contato)}" target="_blank" rel="noopener" class="lead-detail__contact-link lead-detail__contact-link--whatsapp">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+          WhatsApp
+        </a>`;
+      }
+      return `<a href="mailto:${esc(contato)}" class="lead-detail__contact-link lead-detail__contact-link--email">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+        E-mail
+      </a>`;
+    }
+
+    /* ─── Carregar leads ─── */
+    async function carregarLeads() {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const { data, error } = await sb.rpc('rpc_listar_leads', { p_token: token });
+      if (error) {
+        console.error('rpc_listar_leads:', error);
+        showToast('Erro ao carregar leads');
+        return;
+      }
+
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!res || !res.ok) {
+        console.error('rpc_listar_leads:', res);
+        return;
+      }
+
+      leads = res.leads || [];
+      renderLeads();
+      atualizarBadge();
+    }
+
+    /* ─── Renderização ─── */
+    function getFilteredLeads() {
+      const pipeline = document.getElementById('filterPipeline').value;
+      const status = document.getElementById('filterStatus').value;
+      return leads.filter(l => {
+        if (pipeline && l.lead_pipeline !== pipeline) return false;
+        if (status && l.lead_status !== status) return false;
+        return true;
+      });
+    }
+
+    function renderLeads() {
+      const filtered = getFilteredLeads();
+      const emptyEl = document.getElementById('leadsEmpty');
+
+      if (filtered.length === 0) {
+        document.getElementById('leadsKanban').innerHTML = '';
+        document.getElementById('leadsList').innerHTML = '';
+        emptyEl.style.display = '';
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      if (currentView === 'kanban') {
+        renderKanban(filtered);
+        document.getElementById('leadsKanban').style.display = '';
+        document.getElementById('leadsList').style.display = 'none';
+      } else {
+        renderLista(filtered);
+        document.getElementById('leadsList').style.display = '';
+        document.getElementById('leadsKanban').style.display = 'none';
+      }
+    }
+
+    function renderKanban(list) {
+      const grouped = {};
+      STATUS_ORDER.forEach(s => grouped[s] = []);
+      list.forEach(l => {
+        const st = l.lead_status || 'novo';
+        if (!grouped[st]) grouped[st] = [];
+        grouped[st].push(l);
+      });
+
+      const container = document.getElementById('leadsKanban');
+      container.innerHTML = STATUS_ORDER.map(status => {
+        const items = grouped[status];
+        return `
+          <div class="leads-column">
+            <div class="leads-column__header">
+              ${esc(STATUS_LABELS[status])}
+              <span class="leads-column__count">${items.length}</span>
+            </div>
+            <div class="leads-column__body">
+              ${items.map(l => renderLeadCard(l)).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderLeadCard(l) {
+      const contato = esc(l.lead_contato || '');
+      const nome = esc(l.lead_nome || 'Visitante');
+      const msgs = l.total_mensagens || 0;
+      const lastMsg = l.ultima_mensagem ? esc(l.ultima_mensagem).substring(0, 60) : '';
+      const ago = timeAgo(l.ultima_mensagem_em || l.criada_em);
+
+      return `
+        <div class="lead-card lead-card--${l.lead_status || 'novo'}" onclick="abrirLead('${l.id}')">
+          <div class="lead-card__name">${nome}</div>
+          <div class="lead-card__contact">${contato}</div>
+          ${lastMsg ? `<div class="lead-card__last-msg">"${lastMsg}"</div>` : ''}
+          <div class="lead-card__meta">
+            <span class="lead-card__msgs">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              ${msgs}
+            </span>
+            <span>${ago}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLista(list) {
+      const container = document.getElementById('leadsList');
+      container.innerHTML = list.map(l => `
+        <div class="lead-row" onclick="abrirLead('${l.id}')">
+          <div class="lead-row__name">${esc(l.lead_nome || 'Visitante')}</div>
+          <div class="lead-row__contact">${esc(l.lead_contato || '')}</div>
+          <div class="lead-row__status"><span class="badge ${l.lead_status === 'novo' ? 'badge--active' : ''}">${esc(STATUS_LABELS[l.lead_status] || l.lead_status)}</span></div>
+          <div class="lead-row__time">${timeAgo(l.ultima_mensagem_em || l.criada_em)}</div>
+        </div>
+      `).join('');
+    }
+
+    /* ─── Badge no header ─── */
+    function atualizarBadge() {
+      const novos = leads.filter(l => l.lead_status === 'novo').length;
+      const badge = document.getElementById('headerLeadBadge');
+      if (novos > 0) {
+        badge.textContent = novos;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    /* ─── Abrir detalhe do lead ─── */
+    function abrirLead(id) {
+      const lead = leads.find(l => l.id === id);
+      if (!lead) return;
+
+      const detail = document.getElementById('leadDetail');
+      const pagina = lead.lead_pagina_origem ? esc(lead.lead_pagina_origem) : '(desconhecida)';
+
+      detail.innerHTML = `
+        <div class="lead-detail__header">
+          <div>
+            <div class="lead-detail__name">${esc(lead.lead_nome || 'Visitante')}</div>
+            <div class="text-sm text-muted">${esc(lead.lead_contato || '')}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${contactLink(lead.lead_contato)}
+            <button class="btn btn--sm btn--primary" onclick="entrarNoChat('${lead.id}')">Abrir Chat</button>
+          </div>
+        </div>
+
+        <div class="lead-detail__info">
+          <div class="lead-detail__field">
+            <label>Status</label>
+            <select id="leadStatusSel" class="form-input" style="padding:5px 8px;font-size:0.82rem">
+              ${STATUS_ORDER.map(s => `<option value="${s}" ${lead.lead_status === s ? 'selected' : ''}>${esc(STATUS_LABELS[s])}</option>`).join('')}
+            </select>
+          </div>
+          <div class="lead-detail__field">
+            <label>Pipeline</label>
+            <select id="leadPipelineSel" class="form-input" style="padding:5px 8px;font-size:0.82rem">
+              <option value="geral" ${lead.lead_pipeline === 'geral' ? 'selected' : ''}>Geral</option>
+              <option value="sites" ${lead.lead_pipeline === 'sites' ? 'selected' : ''}>Sites</option>
+              <option value="consultoria" ${lead.lead_pipeline === 'consultoria' ? 'selected' : ''}>Consultoria</option>
+            </select>
+          </div>
+          <div class="lead-detail__field">
+            <label>Página de origem</label>
+            <div style="font-size:0.82rem;word-break:break-all">${pagina}</div>
+          </div>
+          <div class="lead-detail__field">
+            <label>Chegou em</label>
+            <div style="font-size:0.82rem">${formatDateBr(lead.criada_em)}</div>
+          </div>
+          <div class="lead-detail__field">
+            <label>Mensagens</label>
+            <div style="font-size:0.82rem">${lead.total_mensagens || 0}</div>
+          </div>
+          <div class="lead-detail__field">
+            <label>Última mensagem</label>
+            <div style="font-size:0.82rem">${lead.ultima_mensagem_em ? formatDateBr(lead.ultima_mensagem_em) : 'Nenhuma'}</div>
+          </div>
+        </div>
+
+        <div class="lead-detail__notes">
+          <label class="ap-form__label" style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--gray-500);margin-bottom:4px;display:block">Notas</label>
+          <textarea id="leadNotas" placeholder="Anotações sobre este lead...">${esc(lead.lead_notas || '')}</textarea>
+        </div>
+
+        <div class="lead-detail__actions">
+          <button class="btn btn--primary btn--sm" onclick="salvarLead('${lead.id}')">Salvar</button>
+          <button class="btn btn--secondary btn--sm" onclick="converterLead('${lead.id}')">Converter em Projeto</button>
+          <button class="btn btn--secondary btn--sm" onclick="fecharModalLead()">Fechar</button>
+        </div>
+      `;
+
+      document.getElementById('modalLead').classList.add('modal-overlay--active');
+    }
+
+    function fecharModalLead() {
+      document.getElementById('modalLead').classList.remove('modal-overlay--active');
+    }
+
+    function entrarNoChat(salaId) {
+      window.open('sala.html?id=' + salaId + '&consultor=1', '_blank');
+    }
+
+    /* ─── Salvar alterações no lead ─── */
+    async function salvarLead(id) {
+      const token = getAuthToken();
+      const status = document.getElementById('leadStatusSel').value;
+      const pipeline = document.getElementById('leadPipelineSel').value;
+      const notas = document.getElementById('leadNotas').value;
+
+      const { data, error } = await sb.rpc('rpc_atualizar_lead', {
+        p_token: token,
+        p_sala_id: id,
+        p_lead_status: status,
+        p_lead_notas: notas,
+        p_lead_pipeline: pipeline
+      });
+
+      if (error) {
+        showToast('Erro ao salvar: ' + error.message);
+        return;
+      }
+
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (res && res.ok) {
+        showToast('Lead atualizado!');
+        fecharModalLead();
+        await carregarLeads();
+      } else {
+        showToast('Erro: ' + (res?.error || 'desconhecido'));
+      }
+    }
+
+    /* ─── Converter lead em projeto ─── */
+    async function converterLead(id) {
+      const senha = prompt('Defina uma senha de administrador para o projeto (ou deixe vazio para gerar automática):');
+      if (senha === null) return;
+
+      const token = getAuthToken();
+      const { data, error } = await sb.rpc('rpc_converter_lead_em_projeto', {
+        p_token: token,
+        p_sala_id: id,
+        p_senha_admin: senha || null
+      });
+
+      if (error) {
+        showToast('Erro: ' + error.message);
+        return;
+      }
+
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (res && res.ok) {
+        const senhaFinal = res.senha_admin || '(automática)';
+        showToast('Lead convertido em projeto!');
+        alert('Projeto criado!\n\nSenha do admin: ' + senhaFinal + '\n\nGuarde esta senha.');
+        fecharModalLead();
+        await carregarLeads();
+      } else {
+        showToast('Erro: ' + (res?.error || 'desconhecido'));
+      }
+    }
+
+    /* ─── Notificações (Nível 1): som + badge + título piscante ─── */
+    function playNotifSound() {
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 660;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+
+        setTimeout(function () {
+          var osc2 = ctx.createOscillator();
+          var gain2 = ctx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.frequency.value = 880;
+          osc2.type = 'sine';
+          gain2.gain.setValueAtTime(0.1, ctx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          osc2.start(ctx.currentTime);
+          osc2.stop(ctx.currentTime + 0.4);
+        }, 200);
+      } catch (e) { /* silent */ }
+    }
+
+    function startTitleBlink(msg) {
+      if (titleBlinkInterval) return;
+      let show = true;
+      titleBlinkInterval = setInterval(() => {
+        document.title = show ? msg : originalTitle;
+        show = !show;
+      }, 1200);
+    }
+
+    function stopTitleBlink() {
+      if (titleBlinkInterval) {
+        clearInterval(titleBlinkInterval);
+        titleBlinkInterval = null;
+      }
+      document.title = originalTitle;
+    }
+
+    window.addEventListener('focus', () => {
+      pendingNotifications = 0;
+      stopTitleBlink();
+    });
+
+    /* ─── Realtime: ouvir novos leads ─── */
+    function ouvirLeadsRealtime() {
+      if (realtimeChannel) return;
+      realtimeChannel = sb
+        .channel('leads-realtime')
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'salas', filter: 'tipo=eq.lead' },
+          (payload) => {
+            playNotifSound();
+            pendingNotifications++;
+            startTitleBlink('🔔 Novo lead!');
+            carregarLeads();
+          }
+        )
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'mensagens' },
+          (payload) => {
+            const msg = payload.new;
+            if (!msg) return;
+            const isLead = leads.some(l => l.id === msg.sala_id);
+            if (!isLead) return;
+            carregarLeads();
+            if (!document.hasFocus()) {
+              playNotifSound();
+              startTitleBlink('💬 Nova mensagem!');
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    /* ─── Tabs Kanban/Lista ─── */
+    document.getElementById('viewTabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('.leads-tabs__btn');
+      if (!btn) return;
+      document.querySelectorAll('.leads-tabs__btn').forEach(b => b.classList.remove('leads-tabs__btn--active'));
+      btn.classList.add('leads-tabs__btn--active');
+      currentView = btn.dataset.view;
+      renderLeads();
+    });
+
+    document.getElementById('filterPipeline').addEventListener('change', renderLeads);
+    document.getElementById('filterStatus').addEventListener('change', renderLeads);
+
+    /* ─── Init ─── */
+    (async function init() {
+      currentUser = await requireAuth(['admin', 'superadmin']);
+      if (!currentUser) return;
+
+      document.getElementById('headerUserName').textContent = currentUser.nome;
+      document.getElementById('headerUserRole').textContent = currentUser.role === 'superadmin' ? 'Super Admin' : 'Admin';
+
+      await carregarLeads();
+      ouvirLeadsRealtime();
+    })();
+
+  </script>
+
+</body>
+</html>

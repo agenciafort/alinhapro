@@ -21,6 +21,10 @@
     </div>
     <nav class="header__nav">
       <a href="superadmin.html" class="header__nav-link header__nav-link--muted" id="navSuperAdmin" hidden>Gerenciar Admins</a>
+      <a href="leads.html" class="header__nav-link header__nav-link--muted" id="navLeads" style="position:relative">
+        Leads
+        <span class="leads-tabs__badge" id="headerLeadBadge" style="display:none">0</span>
+      </a>
       <button class="btn btn--primary btn--sm" onclick="abrirModalNovaSala()">+ Nova Sala</button>
       <button type="button" class="header__nav-link header__nav-link--btn header__nav-link--cta" onclick="logout()">Sair</button>
     </nav>
@@ -410,6 +414,78 @@
       await carregarListaSalas();
     }
 
+    /* ─── Notificação de novos leads (badge + som) ─── */
+    let leadRealtimeChannel = null;
+    let adminTitleBlink = null;
+    const adminOrigTitle = document.title;
+
+    function playLeadNotifSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 660; osc.type = 'sine';
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
+        setTimeout(() => {
+          const o2 = ctx.createOscillator();
+          const g2 = ctx.createGain();
+          o2.connect(g2); g2.connect(ctx.destination);
+          o2.frequency.value = 880; o2.type = 'sine';
+          g2.gain.setValueAtTime(0.1, ctx.currentTime);
+          g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          o2.start(ctx.currentTime); o2.stop(ctx.currentTime + 0.4);
+        }, 200);
+      } catch (e) { /* silent */ }
+    }
+
+    async function contarLeadsNovos() {
+      const token = getAuthToken();
+      if (!token) return;
+      const { data } = await sb.rpc('rpc_listar_leads', { p_token: token });
+      const res = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!res || !res.ok) return;
+      const novos = (res.leads || []).filter(l => l.lead_status === 'novo').length;
+      const badge = document.getElementById('headerLeadBadge');
+      if (novos > 0) {
+        badge.textContent = novos;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    function ouvirLeadsNoAdmin() {
+      if (leadRealtimeChannel) return;
+      leadRealtimeChannel = sb
+        .channel('admin-leads-notif')
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'salas', filter: 'tipo=eq.lead' },
+          () => {
+            playLeadNotifSound();
+            contarLeadsNovos();
+            if (!adminTitleBlink) {
+              let show = true;
+              adminTitleBlink = setInterval(() => {
+                document.title = show ? '🔔 Novo lead!' : adminOrigTitle;
+                show = !show;
+              }, 1200);
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    window.addEventListener('focus', () => {
+      if (adminTitleBlink) {
+        clearInterval(adminTitleBlink);
+        adminTitleBlink = null;
+        document.title = adminOrigTitle;
+      }
+    });
+
     (async function init() {
       currentUser = await requireAuth(['admin', 'superadmin']);
       if (!currentUser) return;
@@ -422,6 +498,8 @@
       }
 
       await carregarListaSalas();
+      await contarLeadsNovos();
+      ouvirLeadsNoAdmin();
     })();
   </script>
 
