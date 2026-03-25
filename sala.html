@@ -1053,13 +1053,10 @@
       }
 
       function showScreenPreview(show) {
-        if (show && rtcState.screenStream) {
-          remoteVideo.srcObject = rtcState.screenStream;
-          showRemoteVideo(true);
+        if (show) {
           liveBadge.style.display = '';
         } else if (!show && !rtcState.remoteStream) {
-          remoteVideo.srcObject = null;
-          showRemoteVideo(false);
+          liveBadge.style.display = 'none';
         }
       }
 
