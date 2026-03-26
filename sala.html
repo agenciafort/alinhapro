@@ -1054,13 +1054,29 @@
       }
 
       function showScreenPreview(show) {
-        if (show && rtcState.screenStream) {
-          remoteVideo.srcObject = rtcState.screenStream;
-          showRemoteVideo(true);
+        if (show) {
           liveBadge.style.display = '';
+          if (modoConsultor) {
+            rtcVideoContainer.style.display = 'none';
+            previewIframe.style.display = '';
+            previewIframe.style.pointerEvents = 'auto';
+            var sh = document.getElementById('previewShield');
+            if (sh) sh.style.display = 'none';
+            panelPreview.style.display = '';
+            panelPreview.classList.add('preview-container--active');
+            document.getElementById('panelDocumento').style.display = 'none';
+          } else if (rtcState.screenStream) {
+            remoteVideo.srcObject = rtcState.screenStream;
+            showRemoteVideo(true);
+          }
         } else {
-          remoteVideo.srcObject = null;
-          showRemoteVideo(false);
+          if (modoConsultor) {
+            var sh2 = document.getElementById('previewShield');
+            if (sh2 && isAdmin) sh2.style.display = 'none';
+          } else {
+            remoteVideo.srcObject = null;
+            showRemoteVideo(false);
+          }
           if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
             liveBadge.style.display = 'none';
           }
