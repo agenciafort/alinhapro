@@ -995,6 +995,7 @@
       }
 
       function showRemoteVideo(show) {
+        if (modoConsultor && rtcState.isScreenSharing) return;
         if (show) {
           rtcVideoContainer.style.display = '';
           previewIframe.style.display = 'none';
@@ -1054,13 +1055,31 @@
       }
 
       function showScreenPreview(show) {
-        if (show && rtcState.screenStream) {
-          remoteVideo.srcObject = rtcState.screenStream;
-          showRemoteVideo(true);
+        if (show) {
           liveBadge.style.display = '';
+          if (modoConsultor) {
+            rtcVideoContainer.style.display = 'none';
+            previewIframe.style.display = '';
+            previewIframe.style.pointerEvents = 'auto';
+            previewIframe.style.zIndex = '2';
+            var shield = document.getElementById('previewShield');
+            if (shield) { shield.style.display = 'none'; shield.style.pointerEvents = 'none'; }
+            panelPreview.style.display = '';
+            panelPreview.classList.add('preview-container--active');
+            panelPreview.style.overflow = 'visible';
+            document.getElementById('panelDocumento').style.display = 'none';
+          } else if (rtcState.screenStream) {
+            remoteVideo.srcObject = rtcState.screenStream;
+            showRemoteVideo(true);
+          }
         } else {
-          remoteVideo.srcObject = null;
-          showRemoteVideo(false);
+          if (modoConsultor) {
+            previewIframe.style.zIndex = '';
+            panelPreview.style.overflow = '';
+          } else {
+            remoteVideo.srcObject = null;
+            showRemoteVideo(false);
+          }
           if (!rtcState.isAudioOn && !rtcState.isVideoOn) {
             liveBadge.style.display = 'none';
           }

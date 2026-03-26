@@ -222,7 +222,8 @@ async function rtcStartScreenShare() {
         height: { ideal: 1080 },
         frameRate: { ideal: 30, max: 30 }
       },
-      audio: false
+      audio: false,
+      preferCurrentTab: true
     });
 
     rtcState.screenStream = stream;
