@@ -198,8 +198,8 @@
           <div class="sala-card__actions">
             <button class="btn btn--primary btn--sm" onclick="entrarComoAdmin('${s.id}')">Entrar</button>
             <button class="btn btn--secondary btn--sm" onclick="copiarLinkCliente('${s.id}')">Link cliente</button>
-            ${s.preview_url ? `<a href="${escapeHtmlAdmin(s.preview_url)}" target="_blank" class="btn btn--sm btn--secondary" title="Abrir site do projeto">Site</a>` : ''}
-            ${s.repo_url ? `<a href="${escapeHtmlAdmin(s.repo_url)}" target="_blank" class="btn btn--sm btn--secondary" title="Abrir repositório no GitHub">GitHub</a>` : ''}
+            ${s.preview_url ? `<button class="btn btn--sm btn--secondary" onclick="copiarLinkSite('${escapeHtmlAdmin(s.preview_url)}')" title="Copiar link do site do projeto">Site</button>` : ''}
+            ${s.repo_url ? `<button class="btn btn--sm btn--secondary" onclick="copiarLinkSite('${escapeHtmlAdmin(s.repo_url)}')" title="Copiar link do GitHub">GitHub</button>` : ''}
             ${s.status === 'ativa'
               ? `<button class="btn btn--sm btn--secondary" onclick="concluirSala('${s.id}')">Concluir</button>`
               : `<button class="btn btn--sm btn--secondary" onclick="reativarSala('${s.id}')">Reativar</button>`
@@ -334,6 +334,12 @@
       const link = `${baseUrl}sala.html?id=${salaId}`;
       navigator.clipboard.writeText(link).then(() => {
         showToast('Link do cliente copiado!');
+      });
+    }
+
+    function copiarLinkSite(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Link copiado!');
       });
     }
 
