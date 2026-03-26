@@ -995,7 +995,7 @@
       }
 
       function showRemoteVideo(show) {
-        if (modoConsultor && rtcState.isScreenSharing) return;
+        if (consultorSharing) return;
         if (show) {
           rtcVideoContainer.style.display = '';
           previewIframe.style.display = 'none';
@@ -1054,29 +1054,29 @@
         }
       }
 
+      var consultorSharing = false;
+
       function showScreenPreview(show) {
+        consultorSharing = show && modoConsultor;
         if (show) {
           liveBadge.style.display = '';
           if (modoConsultor) {
             rtcVideoContainer.style.display = 'none';
             previewIframe.style.display = '';
             previewIframe.style.pointerEvents = 'auto';
-            previewIframe.style.zIndex = '2';
+            previewIframe.style.zIndex = '20';
+            previewIframe.style.position = 'absolute';
             var shield = document.getElementById('previewShield');
-            if (shield) { shield.style.display = 'none'; shield.style.pointerEvents = 'none'; }
+            if (shield) { shield.style.display = 'none'; shield.style.pointerEvents = 'none'; shield.style.zIndex = '0'; }
             panelPreview.style.display = '';
             panelPreview.classList.add('preview-container--active');
-            panelPreview.style.overflow = 'visible';
             document.getElementById('panelDocumento').style.display = 'none';
-          } else if (rtcState.screenStream) {
-            remoteVideo.srcObject = rtcState.screenStream;
-            showRemoteVideo(true);
           }
         } else {
           if (modoConsultor) {
             previewIframe.style.zIndex = '';
-            panelPreview.style.overflow = '';
-          } else {
+          }
+          if (!modoConsultor) {
             remoteVideo.srcObject = null;
             showRemoteVideo(false);
           }
@@ -1091,8 +1091,9 @@
           rtcStopScreenShare();
           showScreenPreview(false);
         } else {
+          showScreenPreview(true);
           const ok = await rtcStartScreenShare();
-          if (ok) showScreenPreview(true);
+          if (!ok) showScreenPreview(false);
         }
         updateButtons();
       });

@@ -215,7 +215,7 @@ async function rtcStartScreenShare() {
   }
 
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
+    const opts = {
       video: {
         cursor: 'always',
         width: { ideal: 1920 },
@@ -223,8 +223,10 @@ async function rtcStartScreenShare() {
         frameRate: { ideal: 30, max: 30 }
       },
       audio: false,
-      preferCurrentTab: true
-    });
+      preferCurrentTab: true,
+      selfBrowserSurface: 'include'
+    };
+    const stream = await navigator.mediaDevices.getDisplayMedia(opts);
 
     rtcState.screenStream = stream;
     rtcState.isScreenSharing = true;
